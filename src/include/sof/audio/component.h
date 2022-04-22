@@ -209,7 +209,7 @@ enum {
 		      trace_comp_get_subid, comp_p, __e, ##__VA_ARGS__)
 
 #define comp_perf_info(pcd, comp_p)					\
-	comp_info(comp_p, "perf comp_copy peak plat %d cpu %d",		\
+	comp_info(comp_p, "perf comp_copy peak plat %u cpu %u",		\
 		  (uint32_t)((pcd)->plat_delta_peak),			\
 		  (uint32_t)((pcd)->cpu_delta_peak))
 
