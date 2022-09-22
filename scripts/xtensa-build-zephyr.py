@@ -85,7 +85,7 @@ class PlatformConfig:
 	XTENSA_TOOLS_VERSION: str
 	XTENSA_CORE: str
 	DEFAULT_TOOLCHAIN_VARIANT: str = "xt-clang"
-	RIMAGE_KEY: pathlib.Path = pathlib.Path(SOF_TOP, "keys", "otc_private_key_3k.pem")
+	RIMAGE_KEY: pathlib.Path = pathlib.Path(SOF_TOP, "keys", "mtl_private_key.pem")
 	aliases: list = dataclasses.field(default_factory=list)
 	ipc4: bool = False
 
