@@ -1,4 +1,9 @@
 
+#include <stdint.h>
+
+intptr_t my_intptr;
+uint32_t my_uint32 = 123;
+
 int bbb;
 //int bbb2 = 5;
 
@@ -16,7 +21,9 @@ const struct blah {
     int b;
 } blah = {111,222};
 
+int lib2_func();
+
 __attribute__((section(".cmi.text"))) int sample_PackageEntryPoint()
 {
-    return foo();
+    return foo() + lib2_func();
 }
