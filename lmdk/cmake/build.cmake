@@ -5,9 +5,14 @@
 
 include(${CMAKE_CURRENT_LIST_DIR}/config.cmake)
 
+###include(CheckPIESupported)
+###check_pie_supported()
+
 foreach(MODULE ${MODULES_LIST})
   add_library(${MODULE} STATIC)
   add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../modules/${MODULE} ${MODULE}_module)
+
+  set_property(TARGET ${MODULE} PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 
   target_include_directories(${MODULE} PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/../include"
@@ -24,6 +29,8 @@ endforeach()
 # TODO: modify to eliminate _library in target exe file name (allow user to decide how its binary should be named)!!!
 set(LIBRARY ${PROJECT_NAME}_library)
 add_executable(${LIBRARY} ${CMAKE_CURRENT_LIST_DIR}/empty.c)
+
+###set_property(TARGET ${LIBRARY} PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 
 # generate linker scripts
 add_custom_command(TARGET ${LIBRARY} PRE_LINK DEPENDS ${MODULES_LIST}
