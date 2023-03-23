@@ -4,7 +4,7 @@ PHDRS {
 }
 
 SECTIONS {
-    .${LIBNAME}.guard : ALIGN(4096) {
+    .guard : ALIGN(4096) {
         _guard_section_start = ABSOLUTE(.);
         *(.*)
         _guard_section_end = ABSOLUTE(.);

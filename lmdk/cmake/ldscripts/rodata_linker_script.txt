@@ -1,0 +1,22 @@
+
+PHDRS {
+    rodata_phdr PT_LOAD;
+}
+
+EXTERN(HPSRAM)
+
+SECTIONS {
+    .rodata : ALIGN(4096) {
+        _rodata_start = ABSOLUTE(.);
+        *(.gnu.linkonce.r.*)
+        *(.rodata)
+        *(.rodata.*)
+        KEEP (*(.eh_frame))
+        _rodata_end = ABSOLUTE(.);
+    } >HPSRAM_seg AT>IMR_seg : rodata_phdr
+
+    /* Module manifest is here */
+    .module : ALIGN(4096) {
+        KEEP(*(.module))
+    } >HPSRAM_seg AT>IMR_seg : rodata_phdr
+}

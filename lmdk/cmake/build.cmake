@@ -5,48 +5,49 @@
 
 include(${CMAKE_CURRENT_LIST_DIR}/config.cmake)
 
-###include(CheckPIESupported)
-###check_pie_supported()
-
 foreach(MODULE ${MODULES_LIST})
-  add_library(${MODULE} STATIC)
-  add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../modules/${MODULE} ${MODULE}_module)
+  add_executable(${MODULE})
+  add_subdirectory(${LMDK_BASE}/modules/${MODULE} ${MODULE}_module)
 
-  set_property(TARGET ${MODULE} PROPERTY POSITION_INDEPENDENT_CODE TRUE)
+###  set_target_properties(${MODULE} PROPERTIES OUTPUT_NAME ${MODULE}.mod)
 
   target_include_directories(${MODULE} PRIVATE
-    "${CMAKE_CURRENT_LIST_DIR}/../include"
-    "${CMAKE_CURRENT_LIST_DIR}/../../src/include/sof/audio/module_adapter/iadk"	# REMOVE THIS???
+    "${LMDK_BASE}/include"
+    "${RIMAGE_INCLUDE_DIR}"
   )
 
-  add_custom_command(TARGET ${MODULE} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${MODULE}> $<TARGET_FILE:${MODULE}>.original.a
-    COMMAND ${CMAKE_OBJCOPY} --prefix-alloc-sections=.${MODULE} $<TARGET_FILE:${MODULE}>.original.a $<TARGET_FILE:${MODULE}>
-    COMMAND ${CMAKE_NM} $<TARGET_FILE:${MODULE}> > ${MODULE}.nm
+  # generate linker script
+  get_target_property(IMR_ADDR ${MODULE} IMR_ADDR)
+  get_target_property(HPSRAM_ADDR ${MODULE} HPSRAM_ADDR)
+
+  if(NOT DEFINED IMR_ADDR OR NOT DEFINED HPSRAM_ADDR)
+    message(FATAL_ERROR "Please define IMR_ADDR and HPSRAM_ADDR for module ${MODULE}: '${IMR_ADDR}' '${HPSRAM_ADDR}'")
+  endif()
+
+  add_custom_command(TARGET ${MODULE} PRE_LINK
+    COMMAND ${CMAKE_COMMAND}
+      -DMODULE=${MODULE}
+      -DIMR_ADDR=${IMR_ADDR}
+      -DHPSRAM_ADDR=${HPSRAM_ADDR}
+      -P ${CMAKE_CURRENT_LIST_DIR}/ldscripts.cmake
+  )
+
+  target_link_options(${MODULE} PRIVATE
+    "--verbose"	# optional
+    "-nostdlib" "-nodefaultlibs"
+    "-Wl,--no-undefined" "-Wl,--unresolved-symbols=report-all" "-Wl,--error-unresolved-symbols"
+#    "-Wl,--gc-sections"
+    "-Wl,-Map,$<TARGET_FILE:${MODULE}>.map"	# optional: just for debug
+    "-T" "${MODULE}_ldscripts/elf32xtensa.x"
   )
 endforeach()
 
-# TODO: modify to eliminate _library in target exe file name (allow user to decide how its binary should be named)!!!
-set(LIBRARY ${PROJECT_NAME}_library)
-add_executable(${LIBRARY} ${CMAKE_CURRENT_LIST_DIR}/empty.c)
+set(LIBRARY ${PROJECT_NAME}_target)
+set(OUTPUT_FILE ${PROJECT_NAME}.loadable_lib)
 
-###set_property(TARGET ${LIBRARY} PROPERTY POSITION_INDEPENDENT_CODE TRUE)
-
-# generate linker scripts
-add_custom_command(TARGET ${LIBRARY} PRE_LINK DEPENDS ${MODULES_LIST}
-  COMMAND ${CMAKE_COMMAND}
-    -DMODULES_LIST="${MODULES_LIST}"
-    -DLIBNAME=${LIBRARY}
-    -DIMR_ADDR=${IMR_ADDR}
-    -DHPSRAM_ADDR=${HPSRAM_ADDR}
-    -P ${CMAKE_CURRENT_LIST_DIR}/ldscripts.cmake
+add_custom_target(${LIBRARY} ALL
+  DEPENDS ${MODULES_LIST}
+  COMMAND ${RIMAGE_COMMAND} -v -k ${SIGNING_KEY} -f 2.0.0 -b 1 -o ${OUTPUT_FILE} -c ${TOML} -e ${MODULES_LIST}
 )
 
-target_link_options(${LIBRARY} PRIVATE "--verbose")	# optional
-target_link_options(${LIBRARY} PRIVATE "-nostdlib" "-nodefaultlibs")
-target_link_options(${LIBRARY} PRIVATE "-Wl,--no-undefined" "-Wl,--unresolved-symbols=report-all" "-Wl,--error-unresolved-symbols")
-##target_link_options(${LIBRARY} PRIVATE "-Wl,--gc-sections")
-target_link_options(${LIBRARY} PRIVATE "-Wl,-Map,$<TARGET_FILE:${LIBRARY}>.map")
-target_link_options(${LIBRARY} PRIVATE "-T" "ldscripts/elf32xtensa.x")
-
-target_link_libraries(${LIBRARY} PRIVATE ${MODULES_LIST})
+###set_target_properties(${LIBRARY} PROPERTIES OUTPUT_NAME ${PROJECT_NAME}.loadable_lib)

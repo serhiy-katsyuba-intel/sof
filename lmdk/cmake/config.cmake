@@ -1,12 +1,24 @@
-# Default values for IMR and HPSRAM addresses. Overwrite them in
-# project's CMakeLists.txt if needed.
 
-if(NOT DEFINED IMR_ADDR)
-  set(IMR_ADDR "0xa1608000")
-  message("*** Default IMR address is used: ${IMR_ADDR}")
-endif()
+# Signing key for rimage
+###set(SIGNING_KEY "C:/work/key/mtl_private_key.pem")
+set(SIGNING_KEY "/home/ilabuser/work/mtl_private_key.pem")
 
-if(NOT DEFINED HPSRAM_ADDR)
-  set(HPSRAM_ADDR "0xa06a1000")
-  message("*** Default HPSRAM address is used: ${HPSRAM_ADDR}")
-endif()
+# Path to config toml for rimage
+###set(TOML "C:/work/sof/rimage/config/mtl.toml")
+set(TOML "/home/ilabuser/zephyrproject/sof/rimage/config/mtl.toml")
+
+###########################################################
+
+# This Loadable Modules Dev Kit root dir
+set(LMDK_BASE ${CMAKE_CURRENT_LIST_DIR}/..)
+cmake_path(ABSOLUTE_PATH LMDK_BASE NORMALIZE)
+
+# thesofproject root dir
+set(SOF_BASE ${LMDK_BASE}/..)
+cmake_path(ABSOLUTE_PATH SOF_BASE NORMALIZE)
+
+set(RIMAGE_INCLUDE_DIR ${SOF_BASE}/rimage/src/include)
+cmake_path(ABSOLUTE_PATH RIMAGE_INCLUDE_DIR NORMALIZE)
+
+# Path to rimage exec
+set(RIMAGE_COMMAND ${SOF_BASE}/rimage/build/rimage)

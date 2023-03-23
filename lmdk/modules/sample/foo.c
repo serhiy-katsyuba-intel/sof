@@ -21,9 +21,9 @@ const struct blah {
     int b;
 } blah = {111,222};
 
-int lib2_func();
+//int lib2_func();
 
 __attribute__((section(".cmi.text"))) int sample_PackageEntryPoint()
 {
-    return foo() + lib2_func();
+    return foo() /*+ lib2_func()*/;
 }
