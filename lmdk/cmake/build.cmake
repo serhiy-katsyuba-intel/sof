@@ -36,18 +36,16 @@ foreach(MODULE ${MODULES_LIST})
     "--verbose"	# optional
     "-nostdlib" "-nodefaultlibs"
     "-Wl,--no-undefined" "-Wl,--unresolved-symbols=report-all" "-Wl,--error-unresolved-symbols"
-#    "-Wl,--gc-sections"
+    #"-Wl,--gc-sections"	# may remove .bss and that will result in rimage error, do not used for now
     "-Wl,-Map,$<TARGET_FILE:${MODULE}>.map"	# optional: just for debug
     "-T" "${MODULE}_ldscripts/elf32xtensa.x"
   )
 endforeach()
 
 set(LIBRARY ${PROJECT_NAME}_target)
-set(OUTPUT_FILE ${PROJECT_NAME}.loadable_lib)
+set(OUTPUT_FILE ${PROJECT_NAME}.bin)
 
 add_custom_target(${LIBRARY} ALL
   DEPENDS ${MODULES_LIST}
   COMMAND ${RIMAGE_COMMAND} -v -k ${SIGNING_KEY} -f 2.0.0 -b 1 -o ${OUTPUT_FILE} -c ${TOML} -e ${MODULES_LIST}
 )
-
-###set_target_properties(${LIBRARY} PROPERTIES OUTPUT_NAME ${PROJECT_NAME}.loadable_lib)

@@ -7,7 +7,6 @@
 #ifndef __SOF_IPC4_UP_DOWN_MIXER_H__
 #define __SOF_IPC4_UP_DOWN_MIXER_H__
 
-#include <../compiler_attributes.h>
 #include "base-config.h"
 
 /**
@@ -65,6 +64,6 @@ struct ipc4_up_down_mixer_module_cfg {
 	 * channel decoding.
 	 */
 	channel_map channel_map;
-} __packed __aligned(8);
+} __attribute__((packed)) __attribute__((__aligned__(8)));
 
 #endif /* __SOF_IPC4_UP_DOWN_MIXER_H__ */

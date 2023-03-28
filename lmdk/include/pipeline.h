@@ -11,7 +11,7 @@
 //#include <sof/lib/cpu.h>
 //#include <sof/lib/mailbox.h>
 //#include <sof/lib/memory.h>
-//#include <sof/list.h>
+#include <../include/list.h>
 //#include <rtos/task.h>
 //#include <rtos/sof.h>
 //#include <rtos/spinlock.h>
@@ -52,6 +52,12 @@ struct ipc_msg;
 /*
  * Audio pipeline.
  */
+
+struct tr_ctx {
+	const struct sof_uuid_entry *uuid_p;	/**< UUID pointer, use SOF_UUID() to init */
+	uint32_t level;				/**< Default log level */
+};
+
 struct pipeline {
 	uint32_t comp_id;	/**< component id for pipeline */
 	uint32_t pipeline_id;	/**< pipeline id */
@@ -100,7 +106,7 @@ struct pipeline_walk_context {
 	int (*comp_func)(struct comp_dev *cd, struct comp_buffer *buffer,
 			 struct pipeline_walk_context *ctx, int dir);
 	void *comp_data;
-	void (*buff_func)(struct comp_buffer __sparse_cache *buffer, void *data);
+	void (*buff_func)(struct comp_buffer *buffer, void *data);
 	void *buff_data;
 	struct comp_buffer *incoming;
 	/**< pipelines to be scheduled after trigger walk */

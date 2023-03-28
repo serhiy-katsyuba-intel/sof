@@ -17,10 +17,10 @@
 #define __SOF_AUDIO_COMPONENT_INT_H__
 
 #include "component.h"
-#include <rtos/idc.h>
-#include <sof/list.h>
-#include <ipc/topology.h>
-#include <kernel/abi.h>
+//#include <rtos/idc.h>
+#include <../include/list.h>
+#include <../include/ipc/topology.h>
+//#include <kernel/abi.h>
 #include <stdbool.h>
 
 /** \addtogroup component_api_helpers Component Mgmt API

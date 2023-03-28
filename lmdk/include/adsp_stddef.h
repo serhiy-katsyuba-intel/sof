@@ -35,10 +35,10 @@
 
 #define MODULE_INSTANCE_ALIGNMENT 4096
 
-#ifndef MIN(a, b)
+#ifndef MIN
 #define MIN(a,b) ((a<b) ? a : b)
 #endif
-#ifndef MAX(a, b)
+#ifndef MAX
 #define MAX(a,b) ((a<b) ? b : a)
 #endif
 

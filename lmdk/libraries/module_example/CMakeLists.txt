@@ -2,8 +2,9 @@
 cmake_minimum_required(VERSION 3.14)
 set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_LIST_DIR}/../../cmake/xtensa.cmake")
 
-project(sample)
-set(MODULES_LIST module_example2 sample sample2)
+project(up_down_mixer)
+
+set(MODULES_LIST up_down_mixer module_example2)
 
 # TODO: Move it somewhere???
 add_definitions(-DMAJOR_IADSP_API_VERSION=5)

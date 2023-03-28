@@ -8,24 +8,27 @@
 #ifndef __SOF_AUDIO_UP_DOWN_MIXER_H__
 #define __SOF_AUDIO_UP_DOWN_MIXER_H__
 
-#include <../include/component_ext.h>
-#include <sof/audio/ipc-config.h>
-#include <rtos/bit.h>
-#include <sof/common.h>
-#include <sof/trace/trace.h>
-#include <ipc/stream.h>
-#include <ipc4/up_down_mixer.h>
-#include <ipc4/module.h>
-#include <ipc4/base-config.h>
-#include <user/trace.h>
+//#include <../include/component_ext.h>
+//#include <../include/ipc-config.h>
+////#include <rtos/bit.h>
+//#include <../include/common.h>
+////#include <sof/trace/trace.h>
+//#include <../include/ipc/stream.h>
+#include <../include/ipc4/up_down_mixer.h>
+//#include <../include/ipc4/module.h>
+//#include <../include/ipc4/base-config.h>
+//#include <user/trace.h>
 #include <stddef.h>
 #include <stdint.h>
-
+#include <../include/util_macro.h>
 /** This type is introduced for better readability. */
 typedef const int32_t *downmix_coefficients;
 
 /** forward declaration */
 struct up_down_mixer_data;
+
+/** declare module interface */
+static struct module_interface up_down_mixer_interface;
 
 /** Function's pointer to up/down-mix routines. */
 typedef void (*up_down_mixer_routine)(struct up_down_mixer_data *cd,

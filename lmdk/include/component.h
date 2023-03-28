@@ -16,26 +16,28 @@
 #ifndef __SOF_AUDIO_COMPONENT_H__
 #define __SOF_AUDIO_COMPONENT_H__
 
-#include <../include/buffer.h>
+//#include <../include/buffer.h>
 #include <../include/format.h>
-#include <sof/audio/pipeline.h>
-#include <rtos/panic.h>
-#include <rtos/idc.h>
-#include <sof/list.h>
-#include <rtos/alloc.h>
-#include <sof/lib/cpu.h>
-#include <sof/lib/dai.h>
-#include <sof/lib/memory.h>
-#include <sof/lib/perf_cnt.h>
-#include <sof/math/numbers.h>
-#include <sof/schedule/schedule.h>
-#include <rtos/sof.h>
-#include <sof/trace/trace.h>
-#include <ipc/control.h>
-#include <ipc/stream.h>
-#include <sof/ipc/topology.h>
-#include <kernel/abi.h>
-#include <user/trace.h>
+//#include <../include/pipeline.h>
+//#include <rtos/panic.h>
+//#include <rtos/idc.h>
+#include <../include/list.h>
+//#include <rtos/alloc.h>
+//#include <sof/lib/cpu.h>
+//#include <sof/lib/dai.h>
+//#include <sof/lib/memory.h>
+//#include <sof/lib/perf_cnt.h>
+#include <../include/math/numbers.h>
+//#include <sof/schedule/schedule.h>
+//#include <rtos/sof.h>
+//#include <sof/trace/trace.h>
+//#include <../include/ipc/control.h>
+#include <../include/ipc/stream.h>
+#include <../include/ipc/topology.h>
+//#include <kernel/abi.h>
+//#include <user/trace.h>
+
+#include <../include/ipc-config.h>
 
 #include <errno.h>
 #include <stdbool.h>
@@ -66,6 +68,15 @@ struct timestamp_data;
 #define COMP_STATE_ACTIVE	5	/**< Component active */
 #define COMP_STATE_PRE_ACTIVE	6	/**< Component after early initialisation */
 /** @}*/
+
+
+/**
+ * Trace context.
+ */
+struct tr_ctx {
+	const struct sof_uuid_entry *uuid_p;	/**< UUID pointer, use SOF_UUID() to init */
+	uint32_t level;				/**< Default log level */
+};
 
 /** \name Standard Component Stream Commands
  *  TODO: use IPC versions after 1.1
@@ -658,24 +669,25 @@ static inline enum sof_comp_type dev_comp_type(const struct comp_dev *dev)
 static inline struct comp_dev *comp_alloc(const struct comp_driver *drv,
 					  size_t bytes)
 {
-	struct comp_dev *dev = NULL;
-
-	/*
-	 * Use uncached address everywhere to access components to rule out
-	 * multi-core failures. In the future we might decide to switch over to
-	 * the latest coherence API for performance. In that case components
-	 * will be acquired for cached access and released afterwards.
-	 */
-	dev = rzalloc(SOF_MEM_ZONE_RUNTIME_SHARED, 0, SOF_MEM_CAPS_RAM, bytes);
-	if (!dev)
-		return NULL;
-	dev->size = bytes;
-	dev->drv = drv;
-	dev->state = COMP_STATE_INIT;
-	memcpy_s(&dev->tctx, sizeof(struct tr_ctx),
-		 trace_comp_drv_get_tr_ctx(dev->drv), sizeof(struct tr_ctx));
-
-	return dev;
+//	struct comp_dev *dev = NULL;
+//
+//	/*
+//	 * Use uncached address everywhere to access components to rule out
+//	 * multi-core failures. In the future we might decide to switch over to
+//	 * the latest coherence API for performance. In that case components
+//	 * will be acquired for cached access and released afterwards.
+//	 */
+//	dev = rzalloc(SOF_MEM_ZONE_RUNTIME_SHARED, 0, SOF_MEM_CAPS_RAM, bytes);
+//	if (!dev)
+//		return NULL;
+//	dev->size = bytes;
+//	dev->drv = drv;
+//	dev->state = COMP_STATE_INIT;
+//	memcpy_s(&dev->tctx, sizeof(struct tr_ctx),
+//		 trace_comp_drv_get_tr_ctx(dev->drv), sizeof(struct tr_ctx));
+//
+//	return dev;
+return 0;
 }
 
 /**
@@ -785,22 +797,22 @@ static inline void component_set_nearest_period_frames(struct comp_dev *current,
  * @param source Source buffer.
  * @param copy_bytes Requested size of data to be available.
  */
-static inline void comp_underrun(struct comp_dev *dev,
-				 struct comp_buffer __sparse_cache *source,
-				 uint32_t copy_bytes)
-{
-	LOG_MODULE_DECLARE(component, CONFIG_SOF_LOG_LEVEL);
-
-	int32_t bytes = (int32_t)audio_stream_get_avail_bytes(&source->stream) -
-			copy_bytes;
-
-	comp_err(dev, "comp_underrun(): dev->comp.id = %u, source->avail = %u, copy_bytes = %u",
-		 dev_comp_id(dev),
-		 audio_stream_get_avail_bytes(&source->stream),
-		 copy_bytes);
-
-	pipeline_xrun(dev->pipeline, dev, bytes);
-}
+//static inline void comp_underrun(struct comp_dev *dev,
+//				 struct comp_buffer *source,
+//				 uint32_t copy_bytes)
+//{
+//	LOG_MODULE_DECLARE(component, CONFIG_SOF_LOG_LEVEL);
+//
+//	int32_t bytes = (int32_t)audio_stream_get_avail_bytes(&source->stream) -
+//			copy_bytes;
+//
+//	comp_err(dev, "comp_underrun(): dev->comp.id = %u, source->avail = %u, copy_bytes = %u",
+//		 dev_comp_id(dev),
+//		 audio_stream_get_avail_bytes(&source->stream),
+//		 copy_bytes);
+//
+//	pipeline_xrun(dev->pipeline, dev, bytes);
+//}
 
 /**
  * Called by component device when overrun is detected.
@@ -808,19 +820,19 @@ static inline void comp_underrun(struct comp_dev *dev,
  * @param sink Sink buffer.
  * @param copy_bytes Requested size of free space to be available.
  */
-static inline void comp_overrun(struct comp_dev *dev, struct comp_buffer __sparse_cache *sink,
-				uint32_t copy_bytes)
-{
-	LOG_MODULE_DECLARE(component, CONFIG_SOF_LOG_LEVEL);
-
-	int32_t bytes = (int32_t)copy_bytes -
-			audio_stream_get_free_bytes(&sink->stream);
-
-	comp_err(dev, "comp_overrun(): sink->free = %u, copy_bytes = %u",
-		 audio_stream_get_free_bytes(&sink->stream), copy_bytes);
-
-	pipeline_xrun(dev->pipeline, dev, bytes);
-}
+//static inline void comp_overrun(struct comp_dev *dev, struct comp_buffer *sink,
+//				uint32_t copy_bytes)
+//{
+//	LOG_MODULE_DECLARE(component, CONFIG_SOF_LOG_LEVEL);
+//
+//	int32_t bytes = (int32_t)copy_bytes -
+//			audio_stream_get_free_bytes(&sink->stream);
+//
+//	comp_err(dev, "comp_overrun(): sink->free = %u, copy_bytes = %u",
+//		 audio_stream_get_free_bytes(&sink->stream), copy_bytes);
+//
+//	pipeline_xrun(dev->pipeline, dev, bytes);
+//}
 
 /** @}*/
 
@@ -833,8 +845,8 @@ static inline void comp_overrun(struct comp_dev *dev, struct comp_buffer __spars
  * @param[in] sink Sink buffer.
  * @param[out] cl Current copy limits.
  */
-void comp_get_copy_limits(struct comp_buffer __sparse_cache *source,
-			  struct comp_buffer __sparse_cache *sink,
+void comp_get_copy_limits(struct comp_buffer  *source,
+			  struct comp_buffer  *sink,
 			  struct comp_copy_limits *cl);
 
 /**
@@ -846,8 +858,8 @@ void comp_get_copy_limits(struct comp_buffer __sparse_cache *source,
  * @param[in] sink Buffer of sink.
  * @param[out] cl Current copy limits.
  */
-void comp_get_copy_limits_frame_aligned(const struct comp_buffer __sparse_cache *source,
-					const struct comp_buffer __sparse_cache *sink,
+void comp_get_copy_limits_frame_aligned(const struct comp_buffer *source,
+					const struct comp_buffer *sink,
 					struct comp_copy_limits *cl);
 
 /**
@@ -863,7 +875,7 @@ void comp_get_copy_limits_with_lock(struct comp_buffer *source,
 				    struct comp_buffer *sink,
 				    struct comp_copy_limits *cl)
 {
-	struct comp_buffer __sparse_cache *source_c, *sink_c;
+	struct comp_buffer *source_c, *sink_c;
 
 	source_c = buffer_acquire(source);
 	sink_c = buffer_acquire(sink);
@@ -888,7 +900,7 @@ void comp_get_copy_limits_with_lock_frame_aligned(struct comp_buffer *source,
 						  struct comp_buffer *sink,
 						  struct comp_copy_limits *cl)
 {
-	struct comp_buffer __sparse_cache *source_c, *sink_c;
+	struct comp_buffer *source_c, *sink_c;
 
 	source_c = buffer_acquire(source);
 	sink_c = buffer_acquire(sink);
