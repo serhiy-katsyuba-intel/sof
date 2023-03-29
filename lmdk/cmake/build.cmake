@@ -42,10 +42,11 @@ foreach(MODULE ${MODULES_LIST})
   )
 endforeach()
 
-set(LIBRARY ${PROJECT_NAME}_target)
+set(RIMAGE_OUTPUT_FILE ${PROJECT_NAME}_noextmft)
 set(OUTPUT_FILE ${PROJECT_NAME}.bin)
 
-add_custom_target(${LIBRARY} ALL
+add_custom_target(${PROJECT_NAME}_target ALL
   DEPENDS ${MODULES_LIST}
-  COMMAND ${RIMAGE_COMMAND} -v -k ${SIGNING_KEY} -f 2.0.0 -b 1 -o ${OUTPUT_FILE} -c ${TOML} -e ${MODULES_LIST}
+  COMMAND ${RIMAGE_COMMAND} -v -k ${SIGNING_KEY} -f 2.0.0 -b 1 -o ${RIMAGE_OUTPUT_FILE} -c ${TOML} -e ${MODULES_LIST}
+  COMMAND cat ${RIMAGE_OUTPUT_FILE}.xman ${RIMAGE_OUTPUT_FILE} > ${OUTPUT_FILE}
 )
