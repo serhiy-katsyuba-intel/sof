@@ -3,10 +3,6 @@
 ###set(SIGNING_KEY "C:/work/key/mtl_private_key.pem")
 set(SIGNING_KEY "/home/ilabuser/work/mtl_private_key.pem")
 
-# Path to config toml for rimage
-###set(TOML "C:/work/sof/rimage/config/mtl.toml")
-set(TOML "/home/ilabuser/zephyrproject/sof/rimage/config/mtl.toml")
-
 ###########################################################
 
 # This Loadable Modules Dev Kit root dir
