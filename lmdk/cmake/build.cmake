@@ -17,17 +17,15 @@ foreach(MODULE ${MODULES_LIST})
   )
 
   # generate linker script
-  get_target_property(IMR_ADDR ${MODULE} IMR_ADDR)
   get_target_property(HPSRAM_ADDR ${MODULE} HPSRAM_ADDR)
 
-  if(NOT DEFINED IMR_ADDR OR NOT DEFINED HPSRAM_ADDR)
-    message(FATAL_ERROR "Please define IMR_ADDR and HPSRAM_ADDR for module ${MODULE}: '${IMR_ADDR}' '${HPSRAM_ADDR}'")
+  if(NOT DEFINED HPSRAM_ADDR)
+    message(FATAL_ERROR "Please define HPSRAM_ADDR for module ${MODULE}")
   endif()
 
   add_custom_command(TARGET ${MODULE} PRE_LINK
     COMMAND ${CMAKE_COMMAND}
       -DMODULE=${MODULE}
-      -DIMR_ADDR=${IMR_ADDR}
       -DHPSRAM_ADDR=${HPSRAM_ADDR}
       -P ${CMAKE_CURRENT_LIST_DIR}/ldscripts.cmake
   )
@@ -36,7 +34,7 @@ foreach(MODULE ${MODULES_LIST})
     "--verbose"	# optional
     "-nostdlib" "-nodefaultlibs"
     "-Wl,--no-undefined" "-Wl,--unresolved-symbols=report-all" "-Wl,--error-unresolved-symbols"
-    #"-Wl,--gc-sections"	# may remove .bss and that will result in rimage error, do not used for now
+    #"-Wl,--gc-sections"	# may remove .bss and that will result in rimage error, do not use for now
     "-Wl,-Map,$<TARGET_FILE:${MODULE}>.map"	# optional: just for debug
     "-T" "${MODULE}_ldscripts/elf32xtensa.x"
   )

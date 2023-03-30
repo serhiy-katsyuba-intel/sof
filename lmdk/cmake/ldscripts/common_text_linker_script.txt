@@ -20,5 +20,5 @@ SECTIONS {
         KEEP(*(.fini))
         *(.gnu.version)
         _common_text_end = ABSOLUTE(.);
-    } >HPSRAM_seg AT>IMR_seg : text_phdr
+    } >HPSRAM_seg : text_phdr
 }

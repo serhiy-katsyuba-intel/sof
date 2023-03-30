@@ -19,11 +19,11 @@ SECTIONS {
         *(.text.*)
         *(.cmi.literal)
         _text_end = ABSOLUTE(.);
-    } >HPSRAM_seg AT>IMR_seg : text_phdr
+    } >HPSRAM_seg : text_phdr
 
     .cmi.text : ALIGN(4096) {
         _cmi_text_start = ABSOLUTE(.);
         *(.cmi.text)
         _cmi_text_end = ABSOLUTE(.);
-    } >HPSRAM_seg AT>IMR_seg : cmi_text_phdr
+    } >HPSRAM_seg : cmi_text_phdr
 }

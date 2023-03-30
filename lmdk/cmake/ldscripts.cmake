@@ -1,9 +1,8 @@
 # Linker scripts generator
 
-# TODO: check if required parameters are atually specified: IMR_ADDR, HPSRAM_ADDR and MODULE.
+# TODO: check if required parameters are atually specified: HPSRAM_ADDR and MODULE.
 
 # reserve space for manifest?
-math(EXPR IMR "${IMR_ADDR} + 9 * 4096" OUTPUT_FORMAT HEXADECIMAL)
 math(EXPR HPSRAM "${HPSRAM_ADDR} + 9 * 4096" OUTPUT_FORMAT HEXADECIMAL)
 
 set(LDSCRIPTS_DIR ${MODULE}_ldscripts)

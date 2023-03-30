@@ -13,10 +13,10 @@ SECTIONS {
         *(.rodata.*)
         KEEP (*(.eh_frame))
         _rodata_end = ABSOLUTE(.);
-    } >HPSRAM_seg AT>IMR_seg : rodata_phdr
+    } >HPSRAM_seg : rodata_phdr
 
     /* Module manifest is here */
     .module : ALIGN(4096) {
         KEEP(*(.module))
-    } >HPSRAM_seg AT>IMR_seg : rodata_phdr
+    } >HPSRAM_seg : rodata_phdr
 }

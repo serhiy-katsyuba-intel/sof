@@ -34,5 +34,5 @@ SECTIONS {
         *(.gnu.version_d)
         . = ALIGN(4);       /* this table MUST be 4-byte aligned */
         _rodata_end = ABSOLUTE(.);
-    } >HPSRAM_seg AT>IMR_seg : rodata_phdr
+    } >HPSRAM_seg : rodata_phdr
 }

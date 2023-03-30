@@ -8,5 +8,5 @@ SECTIONS {
         _guard_section_start = ABSOLUTE(.);
         *(.*)
         _guard_section_end = ABSOLUTE(.);
-    } >HPSRAM_seg AT>IMR_seg : guard_phdr
+    } >HPSRAM_seg : guard_phdr
 }

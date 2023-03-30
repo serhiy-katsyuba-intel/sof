@@ -16,5 +16,5 @@ SECTIONS {
         _next_end = ABSOLUTE(.);
         *(.bss)
         *(.bss.*)
-    } >HPSRAM_seg AT>IMR_seg : bss_phdr
+    } >HPSRAM_seg : bss_phdr
 }

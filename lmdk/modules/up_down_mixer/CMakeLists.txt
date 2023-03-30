@@ -2,7 +2,6 @@
 target_sources(up_down_mixer PRIVATE up_down_mixer.c)
 
 set_target_properties(up_down_mixer PROPERTIES
-  IMR_ADDR "0xa1618000"
   HPSRAM_ADDR "0xa06b1000"
 )
 
