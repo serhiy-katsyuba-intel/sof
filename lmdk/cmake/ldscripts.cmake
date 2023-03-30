@@ -19,7 +19,7 @@ configure_file(
 
 file(APPEND ${LDSCRIPT_FILE} "INCLUDE ${CMAKE_CURRENT_LIST_DIR}/ldscripts/text_linker_script.txt\n")
 file(APPEND ${LDSCRIPT_FILE} "INCLUDE ${CMAKE_CURRENT_LIST_DIR}/ldscripts/common_text_linker_script.txt\n")
-file(APPEND ${LDSCRIPT_FILE} "INCLUDE ${CMAKE_CURRENT_LIST_DIR}/ldscripts/rodata_linker_script.txt\n")
+file(APPEND ${LDSCRIPT_FILE} "INCLUDE ${CMAKE_CURRENT_LIST_DIR}/ldscripts/data_linker_script.txt\n")
 file(APPEND ${LDSCRIPT_FILE} "INCLUDE ${CMAKE_CURRENT_LIST_DIR}/ldscripts/common_rodata_linker_script.txt\n")
 file(APPEND ${LDSCRIPT_FILE} "INCLUDE ${CMAKE_CURRENT_LIST_DIR}/ldscripts/bss_linker_script.txt\n")
 file(APPEND ${LDSCRIPT_FILE} "INCLUDE ${CMAKE_CURRENT_LIST_DIR}/ldscripts/xt_linker_script.txt\n")
