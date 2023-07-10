@@ -11,7 +11,6 @@ cmake_minimum_required(VERSION 3.19)
 
 set(VERSION_CMAKE_PATH ${CMAKE_CURRENT_LIST_DIR}/version.cmake)
 
-
 # In an ideal world, every CI engine records the most basic and most
 # important information:
 # - current date and time
@@ -53,7 +52,7 @@ if(EXISTS ${TARBALL_VERSION_SOURCE_PATH})
 else()
 	# execute_process() errors are not fatal by default!
 	execute_process(
-	        COMMAND git describe --tags --abbrev=12 --match v* --dirty
+		COMMAND git describe --tags --abbrev=12 --match v* --dirty
 		WORKING_DIRECTORY ${SOF_ROOT_SOURCE_DIRECTORY}
 		OUTPUT_VARIABLE GIT_TAG
 		OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -74,21 +73,26 @@ endif()
 
 message(STATUS "GIT_TAG / GIT_LOG_HASH : ${GIT_TAG} / ${GIT_LOG_HASH}")
 
-file(READ "${SOF_ROOT_SOURCE_DIRECTORY}/versions.json" versions_json)
+if(DEFINED SOF_MAJOR AND DEFINED SOF_MINOR AND DEFINED SOF_MICRO)
+	message(STATUS "Sof version overridden by external config: \
+	${SOF_MAJOR}.${SOF_MINOR}.${SOF_MICRO}")
+else()
+	file(READ "${SOF_ROOT_SOURCE_DIRECTORY}/versions.json" versions_json)
 
-message(VERBOSE "${SOF_ROOT_SOURCE_DIRECTORY}/versions.json=${versions_json}")
+	message(VERBOSE "${SOF_ROOT_SOURCE_DIRECTORY}/versions.json=${versions_json}")
 
-string(JSON SOF_MAJOR GET "${versions_json}" SOF MAJOR)
-string(JSON SOF_MINOR GET "${versions_json}" SOF MINOR)
-string(JSON SOF_MICRO ERROR_VARIABLE micro_error
-                      GET "${versions_json}" SOF MICRO)
+	string(JSON SOF_MAJOR GET "${versions_json}" SOF MAJOR)
+	string(JSON SOF_MINOR GET "${versions_json}" SOF MINOR)
+	string(JSON SOF_MICRO ERROR_VARIABLE micro_error
+		GET "${versions_json}" SOF MICRO)
 
-# Don't confuse "error not found" with "version not found"
-if(NOT "${micro_error}" STREQUAL "NOTFOUND")
-	message(STATUS "versions.json: ${micro_error}, defaulting to 0")
-	# TODO: default this to .99 on the main, never released branch like zephyr does
-	# Keep this default SOF_MICRO the same as the one in xtensa-build-zephyr.py
-	set(SOF_MICRO 0)
+	# Don't confuse "error not found" with "version not found"
+	if(NOT "${micro_error}" STREQUAL "NOTFOUND")
+		message(STATUS "versions.json: ${micro_error}, defaulting to 0")
+		# TODO: default this to .99 on the main, never released branch like zephyr does
+		# Keep this default SOF_MICRO the same as the one in xtensa-build-zephyr.py
+		set(SOF_MICRO 0)
+	endif()
 endif()
 
 string(SUBSTRING "${GIT_LOG_HASH}" 0 5 SOF_TAG)

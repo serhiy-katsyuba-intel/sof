@@ -359,6 +359,11 @@ have precedence over -DEXTRA_CONF_FILE=... Rely on precedence as little as possi
 
 	parser.add_argument("-p", "--pristine", required=False, action="store_true",
 						help="Perform pristine build removing build directory.")
+	parser.add_argument("-b", "--build_version", required=False,
+						help="Overrides cmake provided build version")
+	parser.add_argument("-f", "--fw_version", required=False,
+						help="Overrides cmake provided fw version in format x.x.x")
+
 	parser.add_argument("-u", "--update", required=False, action="store_true",
 		help="""Runs west update command - clones SOF dependencies. Downloads next to this sof clone a new Zephyr
 project with its required dependencies. Creates a modules/audio/sof symbolic link pointing
@@ -435,6 +440,11 @@ IPC4
 	# This does NOT include "extra", experimental platforms.
 	if args.all:
 		args.platforms = list(platform_configs_all)
+
+	global sof_fw_version
+
+	if args.fw_version is not None:
+		sof_fw_version = args.fw_version
 
 	# print help message if no arguments provided
 	if len(sys.argv) == 1 or args.help:
@@ -817,7 +827,12 @@ def rimage_options(platform_dict):
 	# FIXME: drop this line once the following test is fixed
 	# tests/avs/fw_00_basic/test_01_load_fw_extended.py::TestLoadFwExtended::()::
 	#                         test_00_01_load_fw_and_check_version
-	opts.append(("-b", "1"))
+
+
+	if args.build_version is None:
+		opts.append(("-b", "1"))
+	else:
+		opts.append(("-b", args.build_version))
 
 	return opts
 
@@ -936,6 +951,13 @@ def build_platforms():
 		build_cmd.append('--')
 		if args.cmake_args:
 			build_cmd += args.cmake_args
+
+		global sof_fw_version
+		if sof_fw_version:
+			temp_string = sof_fw_version.rsplit(".")
+			build_cmd += [f"-DSOF_MAJOR={temp_string[0]}",f"-DSOF_MINOR={temp_string[1]}",f"-DSOF_MICRO={temp_string[2]}"]
+		if args.build_version:
+			build_cmd += [f"-DSOF_BUILD={args.build_version}"]
 
 		extra_conf_files = [str(item.resolve(True)) for item in args.overlay]
 		# The '-d' option is a shortcut for '-o path_to_debug_overlay', we are good
