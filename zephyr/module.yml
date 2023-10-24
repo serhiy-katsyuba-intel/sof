@@ -3,6 +3,9 @@ name: sof
 samples:
     - app/
 
+build:
+  settings:
+    dts_root: .
 # Default values:
 # build:
 #  cmake: ./zephyr

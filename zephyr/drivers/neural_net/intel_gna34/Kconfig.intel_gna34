@@ -1,0 +1,53 @@
+# Neural network accelerator driver configuration options
+
+# Copyright (c) 2018 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig INTEL_GNA34
+	bool "Intel GNA Inferencing Engine 3.x 4.x"
+	default y
+	depends on DT_HAS_INTEL_GNA34_ENABLED
+	help
+	  Enable support for Intel's GMM and Neural Network Accelerator version 3.x and 4.x
+
+if INTEL_GNA34
+
+config INTEL_GNA34_INIT_PRIORITY
+	int "Init priority"
+	default 99
+	help
+	  Device driver initialization priority.
+
+config INTEL_GNA34_MAX_MODELS
+	int "Max number of neural network models supported by driver"
+	default 8
+	help
+	  Max. number of unique neural network models required in the system
+
+config INTEL_GNA34_MAX_PENDING_REQUESTS
+	int "Max number of pending inference requests"
+	default 8
+	help
+	  Maximum number of pending inference requests in the driver
+
+config INTEL_GNA34_6BAR
+	bool "Intel GNA HW supports 4 or 6 BAR registers, Y for 6 BAR"
+	default n
+	help
+	  This sholud be (n) for MTL and (y) for LNL, PTL
+
+config INTEL_GNA34_SHARED
+	bool "Intel GNA34 driver can be used by multiple modules"
+	default n
+	help
+	  (n) for single user or (y) for multiple users
+
+config INTEL_GNA34_HW_STATS
+	bool "Intel GNA HW - enable capturing HW statistics for inference"
+	default y
+	help
+	  GNA HW statistics counters are anabled and results are passed
+	  to requestor at the end of inference.
+
+
+endif # INTEL_GNA34

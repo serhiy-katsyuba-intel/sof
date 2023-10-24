@@ -619,6 +619,10 @@ zephyr_library_sources_ifdef(CONFIG_SHELL
 )
 
 zephyr_syscall_header(${SOF_SRC_PATH}/include/sof/audio/module_adapter/module/generic.h)
+
+# Zephyr drivers OOT
+add_subdirectory(drivers)
+
 zephyr_syscall_header(${SOF_SRC_PATH}/include/sof/lib/fast-get.h)
 
 zephyr_library_link_libraries(SOF)
