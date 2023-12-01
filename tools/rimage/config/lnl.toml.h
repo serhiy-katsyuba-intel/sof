@@ -134,6 +134,10 @@
 #include <audio/codec/dts/dts.toml>
 #endif
 
+#ifdef CONFIG_CADENCE_CODEC
+#include <audio/module_adapter/module/cadence.toml>
+#endif
+
 #if defined(CONFIG_COMP_RTNR) || defined(LLEXT_FORCE_ALL_MODULAR)
 #include <audio/rtnr/rtnr.toml>
 #endif
