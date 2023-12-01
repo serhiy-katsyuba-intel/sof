@@ -6,7 +6,11 @@
 	name = "RTC_AEC"
 	uuid = UUIDREG_STR_GOOGLE_RTC_AUDIO_PROCESSING
 	REM # bit #i = 1 means core #i is allowed.
+#if CONFIG_LUNARLAKE
+	affinity_mask = "0x1F"
+#else
 	affinity_mask = "0x7"
+#endif
 	instance_count = "1"
 	domain_types = "1"
 	load_type = LOAD_TYPE
