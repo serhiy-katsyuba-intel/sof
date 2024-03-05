@@ -24,6 +24,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
+#include <rtos/cache.h>
 
 #if CONFIG_INTEL_GNA34
 
@@ -31,13 +32,8 @@
 extern "C" {
 #endif
 
-#define CONFIGFW_ADSP_DCACHE_LINE_ALIGNMENT_SIZE 64
-
 #ifndef DCACHE_ALIGN
-#ifndef CONFIGFW_ADSP_DCACHE_LINE_ALIGNMENT_SIZE
-#error "CONFIGFW_ADSP_DCACHE_LINE_ALIGNMENT_SIZE is not defined!"
-#endif
-#define DCACHE_ALIGN __aligned(CONFIGFW_ADSP_DCACHE_LINE_ALIGNMENT_SIZE)
+#define DCACHE_ALIGN __aligned(DCACHE_LINE_SIZE)
 #endif
 
 #define GNA_DRIVER_0 "GNA_DRIVER_0"
@@ -49,7 +45,7 @@ extern "C" {
  * Alignments requirements (defined in bytes)
  * for GNA hardware & driver operational purposes.
  */
-#define GNA_INPUTS_ALIGNMENT     CACHE_ALIGNMENT
+#define GNA_INPUTS_ALIGNMENT     DCACHE_LINE_SIZE
 #define GNA_OUTPUTS_ALIGNMENT    GNA_INPUTS_ALIGNMENT
 #define GNA_DRV_BUFFER_ALIGNMENT GNA_INPUTS_ALIGNMENT
 #define GNA_MODEL_ALIGNMENT      128
