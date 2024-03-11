@@ -334,7 +334,7 @@ intel_gna34_request_enqueue(const struct device *dev, const gna_request *request
  * \param status     - Status of the request,
  * \param hw_status  - A dump of a GNA Status Register for a given request,
  */
-static inline ErrorCode _impl_gna_api_get_request_status(const struct device *dev,
+static inline ErrorCode intel_gna34_get_request_status(const struct device *dev,
 							 gna_request *request,
 							 gna_request_status *status,
 							 uint32_t *hw_status)
@@ -343,9 +343,6 @@ static inline ErrorCode _impl_gna_api_get_request_status(const struct device *de
 
 	return api->get_request_status(dev, request, status, hw_status);
 }
-
-ErrorCode gna_api_get_request_status(const struct device *dev, gna_request *request,
-				     gna_request_status *status, uint32_t *hw_status);
 
 /*! The function aborts request if request already being processed by GNA or removes it from
  *  internal requests FIFO
