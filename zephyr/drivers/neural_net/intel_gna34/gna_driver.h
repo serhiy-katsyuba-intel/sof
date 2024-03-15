@@ -26,7 +26,7 @@
 #if CONFIG_INTEL_GNA34
 
 #include <drivers/intel_gna34.h>
-
+#include "regs_gna_descriptor.h"
 #include "gna_sizeof.h"
 
 #if CONFIG_INTEL_GNA34_SHARED
