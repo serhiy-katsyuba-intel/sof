@@ -33,3 +33,7 @@ if(zephyr) ###  Zephyr ###
   endif()
 
 endif()
+
+if(CONFIG_INFERENCE_SERVICE)
+	add_subdirectory(inference)
+endif()

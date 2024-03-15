@@ -92,6 +92,7 @@ b90f5a4e-5537-4375-a1df95485472ff9e idc_task
 b0cdcd9e-ef8b-404f-84800f287fc9d44d iir
 2f520e85-49ba-4284-90d83def24af313b intc_mt8196
 fa00558c-d653-4851-a03ab21f125a9524 interrupt
+35dc1c78-f6e1-45bb-944f7add7569d13f inference_svc
 be60f97d-78df-4796-a0ee435cb56b720a ipc
 389c9186-5a7d-4ad1-a02ca02ecdadfb33 ipc_task
 49be8ff3-71a3-4456-bb7e4723f2e5730c ipc_task_amd

@@ -631,6 +631,15 @@ config SECONDARY_CORE_DISABLING_TIMEOUT
 	help
 	  Timeout value (in ms) for secondary core to enter D3 state.
 
+config INFERENCE_SERVICE
+	bool "Enable Inference Service"
+	default n
+	depends on ACE
+	help
+	  Enables Inference Service.
+	  Inference Service is used to configure neural network specific data model and
+	  process inference request from the user(FW) to GNA HW.
+
 if XTENSA
 
 config INCOHERENT
