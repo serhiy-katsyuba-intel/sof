@@ -264,24 +264,4 @@ int gna_request_release(struct gna_instance_data *gna);
  */
 int gna_request_start_and_block(struct gna_instance_data *gna);
 
-/**
- * @brief Executes the GNA request task.
- *
- * This function is responsible for running the GNA request task.
- *
- * @param data Pointer to the data required for the task.
- * @return The state of the task after execution.
- */
-static enum task_state gna_request_task_run(void *data);
-
-/**
- * @brief Retrieves the deadline for the GNA request task.
- *
- * This function returns the deadline by which the GNA request task must be completed.
- *
- * @param data Pointer to the data required for the task.
- * @return The deadline for the task in microseconds.
- */
-static uint64_t gna_request_task_deadline(void *data);
-
 #endif /* __SOF_LIB_GNA_INSTANCE_H__ */

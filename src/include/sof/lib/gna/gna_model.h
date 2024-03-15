@@ -28,7 +28,7 @@ struct gna_model_ctx {
 
 	uint8_t *user_data;	      /**< Pointer to user data */
 	uint8_t *ro;		      /**< Pointer to the read-only (ro) buffer */
-	uint8_t *state_buffer;	      /**< Pointer to the state buffer */
+	uint8_t *initial_state_buffer;/**< Pointer to the initial state buffer */
 	uint8_t *scratch_ptr;	      /**< Pointer to the scratch buffer */
 	uint32_t ro_size;	      /**< Size of the read-only (ro) buffer in bytes */
 	uint32_t input_buffer_size;   /**< Size of the input buffer in bytes */

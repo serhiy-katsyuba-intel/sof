@@ -46,11 +46,11 @@ static void gna_lock_init(struct gna_instance_data *gna)
 static bool gna_check_hw_version(uint32_t gna_hw)
 {
 #if CONFIG_ACE_VERSION_1_5
-	return gna_hw == GNA_35_VERSION;
+	return gna_hw == GNA_35_VERSION || gna_hw == GNA_35E_VERSION;
 #elif CONFIG_ACE_VERSION_2_0
-	return gna_hw ==  GNA_36_VERSION;
+	return gna_hw == GNA_36_VERSION;
 #elif CONFIG_ACE_VERSION_3_0
-	return gna_hw ==  GNA_40_VERSION;
+	return gna_hw == GNA_40_VERSION;
 #else
 	return 0;
 #endif
@@ -82,6 +82,8 @@ int32_t gna_model_parse_tlv(struct gna_instance_data *gna)
 		       val_size, *value);
 		return status;
 	}
+
+	tr_info(&intel_gna_tr, "GNA model tlv: hw version %d", *value);
 
 	ret = gna_check_hw_version(*value);
 	if (!ret) {
@@ -118,9 +120,12 @@ int32_t gna_model_parse_tlv(struct gna_instance_data *gna)
 	}
 
 	if (val_size > 0) {
-		model_ctx->state_buffer = (uint8_t *)value;
+		model_ctx->initial_state_buffer = (uint8_t *)value;
 		model_ctx->state_buffer_size = val_size;
 	}
+
+	tr_info(&intel_gna_tr, "GNA model tlv: state_buffer addr=0x%x, size=%d",
+		(uint32_t)model_ctx->initial_state_buffer, model_ctx->state_buffer_size);
 
 	/* Retrieve GNA scratch buffer size */
 	status = Gna2TlvFindInArray(model_ctx->model_data, model_ctx->model_size,
@@ -138,6 +143,9 @@ int32_t gna_model_parse_tlv(struct gna_instance_data *gna)
 	if (model_ctx->scratch_buffer_size > MAX_GNA_SCRATCH)
 		model_ctx->scratch_ptr = model_ctx->gna_extra_scratch_buffer;
 
+	tr_info(&intel_gna_tr, "GNA model tlv: scratch buffer size %d",
+		model_ctx->scratch_buffer_size);
+
 	/* Retrieve GNA input buffer size */
 	status = Gna2TlvFindInArray(model_ctx->model_data, model_ctx->model_size,
 				    Gna2TlvTypeInputBufferSize, &val_size, (void **)&value);
@@ -150,6 +158,9 @@ int32_t gna_model_parse_tlv(struct gna_instance_data *gna)
 
 	model_ctx->input_buffer_size = *value;
 
+	tr_info(&intel_gna_tr, "GNA model tlv: input buffer size %d",
+		model_ctx->input_buffer_size);
+
 	/* Retrieve GNA output buffer size */
 	status = Gna2TlvFindInArray(model_ctx->model_data, model_ctx->model_size,
 				    Gna2TlvTypeOutputBufferSize, &val_size, (void **)&value);
@@ -161,6 +172,9 @@ int32_t gna_model_parse_tlv(struct gna_instance_data *gna)
 	}
 
 	model_ctx->output_buffer_size = *value;
+
+	tr_info(&intel_gna_tr, "GNA model tlv: output buffer size %d",
+		model_ctx->output_buffer_size);
 
 	/* Retrieve GNA layer number */
 	status = Gna2TlvFindInArray(model_ctx->model_data, model_ctx->model_size,
@@ -224,12 +238,14 @@ int gna_add_model(struct gna_instance_data *gna)
 	size_t curr_scratch_size, new_scratch_size;
 	int ret;
 
-	curr_scratch_size = ROUND_UP(gna_get_used_common_scratch(gna), PAGE_SIZE);
+	tr_info(&intel_gna_tr, "Adding GNA model");
+
+	curr_scratch_size = ROUND_UP(gna_get_used_common_scratch(gna), CONFIG_MM_DRV_PAGE_SIZE);
 
 	/* Add GNA model to models list*/
 	list_item_append(&model_ctx->model_item, &gna->gna_model_list);
 
-	new_scratch_size = ROUND_UP(gna_get_used_common_scratch(gna), PAGE_SIZE);
+	new_scratch_size = ROUND_UP(gna_get_used_common_scratch(gna), CONFIG_MM_DRV_PAGE_SIZE);
 
 	if (new_scratch_size > curr_scratch_size) {
 		tr_info(&intel_gna_tr, "GNA model: common scratch buffer size increased");
@@ -299,6 +315,8 @@ static size_t gna_get_used_common_scratch(struct gna_instance_data *gna)
 	struct list_item *item;
 	size_t size;
 
+	tr_info(&intel_gna_tr, "GNA model: getting used common scratch buffer size");
+
 	list_for_item(item, &gna->gna_model_list) {
 		struct gna_model_ctx *model_ctx =
 		    list_item(item, struct gna_model_ctx, model_item);
@@ -316,6 +334,8 @@ size_t gna_model_get_extra_scratch(const uint8_t *model_data, size_t model_size)
 	uint32_t size = 0;
 	Gna2TlvStatus status;
 
+	tr_info(&intel_gna_tr, "GNA model: getting extra scratch buffer size");
+
 	status = Gna2TlvFindInArray(model_data, model_size, Gna2TlvTypeScratchSize, &size,
 				    (void **)&scratch_size);
 	if (status || size != sizeof(uint32_t))
@@ -328,6 +348,9 @@ int gna_set_common_scratch(struct gna_instance_data *gna, size_t old_size, size_
 {
 	uint8_t *new_scratch = NULL;
 
+	tr_info(&intel_gna_tr, "GNA model: setting common scratch buffer size, old %d new %d",
+		old_size, new_size);
+
 	if (new_size > MAX_GNA_SCRATCH) {
 		tr_err(&intel_gna_tr, "GNA common scratch buffer size too big!");
 		return -EINVAL;
@@ -335,8 +358,8 @@ int gna_set_common_scratch(struct gna_instance_data *gna, size_t old_size, size_
 
 	/* Reallocate new common scratch buffer */
 	if (new_size) {
-		new_scratch = rbrealloc_align(gna->common_scratch, 0, SOF_MEM_CAPS_RAM,
-					      new_size, old_size, PLATFORM_PAGE_ALIGN);
+		new_scratch = rbrealloc_align(gna->common_scratch, SOF_MEM_FLAG_USER,
+					      new_size, old_size, CONFIG_MM_DRV_PAGE_SIZE);
 		if (!new_scratch) {
 			tr_err(&intel_gna_tr, "GNA common scratch buffer allocation failed!");
 			return -ENOMEM;
@@ -356,7 +379,9 @@ int gna_remove_model(struct gna_instance_data *gna)
 	size_t curr_scratch, new_scratch;
 	int ret;
 
-	curr_scratch = ROUND_UP(gna_get_used_common_scratch(gna), PAGE_SIZE);
+	tr_info(&intel_gna_tr, "Removing GNA model");
+
+	curr_scratch = ROUND_UP(gna_get_used_common_scratch(gna), CONFIG_MM_DRV_PAGE_SIZE);
 
 	list_item_del(&model_ctx->model_item);
 
@@ -382,7 +407,7 @@ int gna_remove_model(struct gna_instance_data *gna)
 		}
 	}
 
-	new_scratch = ROUND_UP(gna_get_used_common_scratch(gna), PAGE_SIZE);
+	new_scratch = ROUND_UP(gna_get_used_common_scratch(gna), CONFIG_MM_DRV_PAGE_SIZE);
 
 	if (new_scratch < curr_scratch) {
 		tr_info(&intel_gna_tr, "GNA model: common scratch buffer size decreased");
@@ -396,4 +421,265 @@ int gna_remove_model(struct gna_instance_data *gna)
 	}
 
 	return 0;
+}
+
+int gna_request_init(struct gna_instance_data *gna)
+{
+	int ret;
+
+	if (!gna) {
+		tr_err(&intel_gna_tr, "GNA data is NULL!");
+		return -EINVAL;
+	}
+
+	tr_info(&intel_gna_tr, "GNA request initialization");
+
+	/* Allocate GNA request related buffers */
+	ret = gna_request_allocate_buffs(gna);
+	if (ret) {
+		tr_err(&intel_gna_tr, "GNA request buffers allocation failed!");
+		return ret;
+	}
+
+	/* Reset GNA request */
+	ret = gna_request_reset(gna);
+	if (ret) {
+		tr_err(&intel_gna_tr, "GNA request reset failed!");
+		gna_request_free_buffs(gna);
+		return ret;
+	}
+
+	return 0;
+}
+
+int gna_request_start(struct gna_instance_data *gna)
+{
+	struct gna_request_ctx *req_ctx = gna->request_ctx;
+	int ret;
+
+	tr_info(&intel_gna_tr, "Starting GNA request");
+
+	/* Flush and invalidate buffers */
+	sys_cache_data_flush_and_invd_range(req_ctx->state_buffer,
+					    req_ctx->model->state_buffer_size);
+	sys_cache_data_flush_and_invd_range(req_ctx->input_buffer,
+					    req_ctx->model->input_buffer_size);
+	sys_cache_data_flush_and_invd_range(req_ctx->output_buffer,
+					    req_ctx->model->output_buffer_size);
+
+	gna_request_register(req_ctx, true);
+
+	req_ctx->cached_request_status = GNA_REQUEST_WAITING;
+
+	memset(&req_ctx->gna_request, 0, sizeof(req_ctx->gna_request));
+
+	ret = intel_gna34_init_request(
+	    gna->dev, &req_ctx->gna_request, req_ctx->model->model_id, req_ctx->state_buffer,
+	    req_ctx->model->state_buffer_size, 0, req_ctx->model->ldt_number);
+	if (ret) {
+		tr_err(&intel_gna_tr, "Intel GNA: request initialization error! ret=%d",
+		       ret);
+		goto error;
+	}
+
+	ret = intel_gna34_request_enqueue(
+	    gna->dev, &req_ctx->gna_request, req_ctx->input_buffer,
+	    req_ctx->model->input_buffer_size, req_ctx->output_buffer,
+	    req_ctx->model->output_buffer_size, gna_request_done_cb, (void *)req_ctx);
+	if (ret) {
+		tr_err(&intel_gna_tr, "Intel GNA: request enqueue error! ret=%d", ret);
+		goto error;
+	}
+
+	req_ctx->in_progress = true;
+
+	req_ctx->requests_started++;
+
+	tr_info(&intel_gna_tr, "Intel GNA: request enqueued");
+
+	return 0;
+
+error:
+	req_ctx->cached_request_status = GNA_REQUEST_ERRED;
+	return ret;
+}
+
+int gna_request_start_and_block(struct gna_instance_data *gna)
+{
+	int ret;
+
+	tr_info(&intel_gna_tr, "Scheduling GNA request task");
+
+	ret = gna_request_start(gna);
+	if (ret) {
+		tr_err(&intel_gna_tr, "GNA request start failed!");
+		return ret;
+	}
+
+	/* Wait for GNA request completion */
+	if (gna->request_ctx->in_progress) {
+		while (gna_request_block_cb(gna))
+			wait_delay(12);
+	}
+
+	return 0;
+}
+
+static void gna_request_done_cb(const struct device *dev, void *context,
+				uint32_t request_id, gna_request_status status,
+				uint32_t hw_status)
+{
+	struct gna_request_ctx *ctx = context;
+
+	gna_request_register(ctx, false);
+
+	ctx->cached_request_status = status;
+	ctx->in_progress = false;
+
+	tr_info(&intel_gna_tr,
+		"done callback: request status=%d, hw_status=0x%08x, in_progress=%d",
+		status, hw_status, ctx->in_progress);
+
+	/* TODO: Disable power gating */
+}
+
+static bool gna_request_block_cb(struct gna_instance_data *gna)
+{
+	gna_request_status status = gna_request_get_status(gna);
+
+	tr_info(&intel_gna_tr, "GNA Block CB: request status: %d", status);
+
+	/* If true GNA task is blocked */
+	return status == GNA_REQUEST_WAITING || status == GNA_REQUEST_IN_PROGRESS;
+}
+
+int gna_request_reset(struct gna_instance_data *gna)
+{
+	struct gna_request_ctx *req_ctx = gna->request_ctx;
+	int ret;
+
+	tr_info(&intel_gna_tr, "GNA request reset");
+
+	if (req_ctx->model->state_buffer_size > 0) {
+		ret = memcpy_s(req_ctx->state_buffer, req_ctx->model->state_buffer_size,
+			       req_ctx->model->initial_state_buffer,
+			       req_ctx->model->state_buffer_size);
+		assert(!ret);
+	}
+
+	return 0;
+}
+
+int gna_request_release(struct gna_instance_data *gna)
+{
+	struct gna_request_ctx *req_ctx = gna->request_ctx;
+
+	tr_info(&intel_gna_tr, "Releasing GNA request");
+
+	if (req_ctx->in_progress) {
+		while (gna_request_block_cb(gna))
+			wait_delay(12);
+	}
+
+	/* Free GNA buffers */
+	gna_request_free_buffs(gna);
+
+	return 0;
+}
+
+static int gna_request_allocate_buffs(struct gna_instance_data *gna)
+{
+	struct gna_request_ctx *req_ctx = gna->request_ctx;
+	int ret;
+
+	tr_info(&intel_gna_tr, "GNA request buffers allocation");
+
+	req_ctx->input_buffer = rballoc_align(SOF_MEM_FLAG_USER,
+					      req_ctx->model->input_buffer_size,
+					      GNA_DRV_BUFFER_ALIGNMENT);
+	if (!req_ctx->input_buffer) {
+		tr_err(&intel_gna_tr, "GNA request input_buffer allocation failed!");
+		return -ENOMEM;
+	}
+
+	req_ctx->output_buffer = rballoc_align(SOF_MEM_FLAG_USER,
+					       req_ctx->model->output_buffer_size,
+					       GNA_DRV_BUFFER_ALIGNMENT);
+	if (!req_ctx->output_buffer) {
+		tr_err(&intel_gna_tr, "GNA request output_buffer allocation failed!");
+		ret = -ENOMEM;
+		goto in_err;
+	}
+
+	if (req_ctx->model->state_buffer_size) {
+		req_ctx->state_buffer = rballoc_align(SOF_MEM_FLAG_USER,
+						      req_ctx->model->state_buffer_size,
+						      GNA_DRV_BUFFER_ALIGNMENT);
+		if (!req_ctx->state_buffer) {
+			tr_err(&intel_gna_tr, "GNA request state_buffer allocation failed!");
+			ret = -ENOMEM;
+			goto out_err;
+		}
+	}
+
+	return 0;
+
+out_err:
+	rfree(req_ctx->output_buffer);
+in_err:
+	rfree(req_ctx->input_buffer);
+	return ret;
+}
+
+static void gna_request_free_buffs(struct gna_instance_data *gna)
+{
+	struct gna_request_ctx *req_ctx = gna->request_ctx;
+
+	tr_info(&intel_gna_tr, "GNA request buffers free");
+
+	if (req_ctx->input_buffer)
+		rfree(req_ctx->input_buffer);
+	if (req_ctx->output_buffer)
+		rfree(req_ctx->output_buffer);
+	if (req_ctx->state_buffer)
+		rfree(req_ctx->state_buffer);
+}
+
+gna_request_status gna_request_get_status(struct gna_instance_data *gna)
+{
+	struct gna_request_ctx *req_ctx = gna->request_ctx;
+	gna_request_status status = GNA_REQUEST_ERRED;
+	uint32_t hw_status = 0;
+	int ret;
+
+	if (req_ctx->in_progress) {
+		ret = intel_gna34_get_request_status(gna->dev, &req_ctx->gna_request, &status,
+						     &hw_status);
+		if (ret) {
+			tr_err(&intel_gna_tr, "Intel GNA: request get status error! ret=%d", ret);
+			return status;
+		}
+	} else {
+		status = req_ctx->cached_request_status;
+	}
+
+	tr_info(&intel_gna_tr, "GNA request status: %d", status);
+
+	return status;
+}
+
+static void gna_request_register(struct gna_request_ctx *req_ctx, bool reg)
+{
+	req_ctx->model->active_requests += reg ? 1 : -1;
+}
+
+size_t gna_request_get_size(struct gna_model_ctx *model_ctx)
+{
+	return sizeof(struct gna_request_ctx) +
+	       ROUND_UP(gna_model_get_input_buff_size(model_ctx),
+			GNA_DRV_BUFFER_ALIGNMENT) +
+	       ROUND_UP(gna_model_get_output_buff_size(model_ctx),
+			GNA_DRV_BUFFER_ALIGNMENT) +
+	       ROUND_UP(gna_model_get_state_buff_size(model_ctx),
+			GNA_DRV_BUFFER_ALIGNMENT);
 }

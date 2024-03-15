@@ -20,9 +20,8 @@ struct gna_request_ctx {
 	gna_request gna_request;     /**< The GNA request */ /* TODO: change field to request*/
 	bool in_progress;	     /**< Flag indicating if the request is in progress */
 	gna_request_status cached_request_status; /**< Cached request status */
-
-	/* GNA request task data */
-	struct task gna_request_task;		   /**< GNA request task */
+	int requests_started;    /**< Number of GNA inference requests started */
+	int requests_completed ; /**< Number of GNA inference requests completed */
 
 	uint8_t *input_buffer;	/**< Pointer to the input buffer */
 	uint8_t *output_buffer; /**< Pointer to the output buffer */
