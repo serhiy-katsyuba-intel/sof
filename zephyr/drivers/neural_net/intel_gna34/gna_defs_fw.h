@@ -69,18 +69,18 @@
 #define CONFIGFW_ADSP_GNA_DCG             1
 
 #define ADSP_SUCCESS                       0
-#define ADSP_ERROR_NULL_POINTER_AS_PARAM   -EINVAL
-#define ADSP_GNA_ERROR                     -EINVAL
-#define ADSP_GNA_DRV_FREELIST_ERROR        -EINVAL
-#define ADSP_ERROR_INVALID_PARAM           -EINVAL
-#define ADSP_GNA_DEV_NOT_INITIALIZED       -EINVAL
-#define ADSP_GNA_HW_NOT_COMPATIBLE         -EINVAL
-#define ADSP_GNA_MODEL_EXISTS              -EINVAL
-#define ADSP_GNA_MODEL_INVALID_LAYER_COUNT -EINVAL
-#define ADSP_GNA_MODEL_NOT_FOUND           -EINVAL
-#define ADSP_GNA_REQUEST_NOT_EXISTS_ERROR  -EINVAL
-#define ADSP_GNA_DRV_QUEUE_ERROR           -EINVAL
-#define ADSP_GNA_REQUEST_EXISTS_ERROR      -EINVAL
+#define ADSP_ERROR_NULL_POINTER_AS_PARAM   1
+#define ADSP_GNA_ERROR                     2
+#define ADSP_GNA_DRV_FREELIST_ERROR        3
+#define ADSP_ERROR_INVALID_PARAM           4
+#define ADSP_GNA_DEV_NOT_INITIALIZED       5
+#define ADSP_GNA_HW_NOT_COMPATIBLE         6
+#define ADSP_GNA_MODEL_EXISTS              7
+#define ADSP_GNA_MODEL_INVALID_LAYER_COUNT 8
+#define ADSP_GNA_MODEL_NOT_FOUND           9
+#define ADSP_GNA_REQUEST_NOT_EXISTS_ERROR  10
+#define ADSP_GNA_DRV_QUEUE_ERROR           11
+#define ADSP_GNA_REQUEST_EXISTS_ERROR      12
 
 /* Registers for MTL/LNL/PTL platform
  * GNA IP registers, for controlling HW based DSP accelerator.
