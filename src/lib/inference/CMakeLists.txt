@@ -1,3 +1,3 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
-add_local_sources(sof inference_service.c)
+add_local_sources(sof inference_service.c gna_instance.c)

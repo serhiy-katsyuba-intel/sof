@@ -83,13 +83,87 @@ struct gna_instance_data *inference_init(void)
 	return gna;
 }
 
-
-int inference_request_release(struct gna_instance_data *gna)
+int inference_model_init(struct inference_model *model,
+			 struct gna_instance_data *gna,
+			 uint32_t model_ctx_size)
 {
-	return 0;
+	struct gna_model_ctx *model_ctx = NULL;
+	int32_t tlv_status;
+	int ret;
+
+	if (!gna) {
+		tr_err(&inference_svc_tr, "GNA data is NULL!");
+		return -EINVAL;
+	}
+
+	/* Allocate model context */
+	model_ctx = rzalloc(SOF_MEM_ZONE_RUNTIME, 0, SOF_MEM_CAPS_RAM,
+			    model_ctx_size);
+	if (!model_ctx) {
+		tr_err(&inference_svc_tr, "GNA model context allocation failed!");
+		return -ENOMEM;
+	}
+
+	/* Assign model to model context data */
+	model_ctx->model_data = model->data;
+	model_ctx->model_size = model->size;
+
+	/* Assign model context to GNA instance */
+	gna->model_ctx = model_ctx;
+
+	tlv_status = gna_model_parse_tlv(gna);
+	if (tlv_status) {
+		tr_err(&inference_svc_tr, "GNA model parsing cfg failed! status=0x%x",
+		       tlv_status);
+		ret = -EINVAL;
+		goto model_err;
+	}
+
+	ret = gna_add_model(gna);
+	if (ret) {
+		tr_err(&inference_svc_tr, "Unable to add GNA model!");
+		goto model_err;
+	}
+
+	return ret;
+
+model_err:
+	rfree(gna->model_ctx);
+	return ret;
 }
 
 int inference_model_release(struct gna_instance_data *gna)
+{
+	int ret;
+
+	tr_info(&inference_svc_tr, "Inference model release");
+
+	if (!gna)
+		return -EINVAL;
+
+	if (gna->model_ctx->active_requests) {
+		tr_err(&inference_svc_tr, "GNA model - there are still active requests!");
+		return -EBUSY;
+	}
+
+	ret = gna_remove_model(gna);
+	if (ret) {
+		tr_err(&inference_svc_tr, "Unable to remove GNA model!");
+		return ret;
+	}
+
+	rfree(gna->model_ctx);
+
+	return 0;
+}
+
+uint32_t inference_get_model_ctx_size(struct inference_model *model)
+{
+	return sizeof(struct gna_model_ctx) +
+	       gna_model_get_extra_scratch(model->data, model->size);
+}
+
+int inference_request_release(struct gna_instance_data *gna)
 {
 	return 0;
 }
