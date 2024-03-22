@@ -30,3 +30,5 @@ rsource "debug/telemetry/Kconfig"
 rsource "debug/debug_stream/Kconfig"
 
 rsource "debug/tester/Kconfig"
+
+rsource "lib/Kconfig"

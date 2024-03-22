@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
+if INFERENCE_SERVICE
+
+if ACE_VERSION_1_5
+	config GNA_HW_VER_35
+		bool "GNA 3.5 hardware"
+		default y
+		help
+			This option is used to Enable GNA 3.5 hardware for Inference Service.
+endif
+
+if ACE_VERSION_2_0
+	config GNA_HW_VER_36
+		bool "GNA 3.6 hardware"
+		default y
+		help
+			This option is used to Enable GNA 3.6 hardware for Inference Service.
+endif
+
+if ACE_VERSION_3_0
+	config GNA_HW_VER_40
+		bool "GNA 4.0 hardware"
+		default y
+		help
+			This option is used to Enable GNA 4.0 hardware for Inference Service.
+endif
+
+endif # INFERENCE_SERVICE
