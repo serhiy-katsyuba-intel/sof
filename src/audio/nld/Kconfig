@@ -1,0 +1,6 @@
+config COMP_NOISE_LEVEL_DETECTOR
+	bool "Noise Level component"
+	default n
+	help
+	  Enable Noise Level Detector (NLD) component.
+	  The module is able to compute nosie level in audio stream.

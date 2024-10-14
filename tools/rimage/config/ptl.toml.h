@@ -154,6 +154,10 @@ index = __COUNTER__
 #include <audio/mfcc/mfcc.toml>
 #endif
 
+#ifdef CONFIG_COMP_NOISE_LEVEL_DETECTOR
+#include <audio/nld/nld.toml>
+#endif
+
 #if defined(CONFIG_COMP_TEMPLATE) || defined(LLEXT_FORCE_ALL_MODULAR)
 #include <audio/template/template.toml>
 #endif
