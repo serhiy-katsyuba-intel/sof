@@ -17,6 +17,9 @@
 #include "tester.h"
 #include "tester_dummy_test.h"
 #include "tester_simple_dram_test.h"
+#if CONFIG_INFERENCE_SERVICE
+#include "tester_gna_test.h"
+#endif
 
 /**
  * Tester module is a framework for a runtime testing that need a special test code
@@ -73,7 +76,11 @@ static int tester_init(struct processing_module *mod)
 	case TESTER_MODULE_CASE_SIMPLE_DRAM_TEST:
 		cd->tester_case_interface = &tester_interface_simple_dram_test;
 		break;
-
+#if CONFIG_INFERENCE_SERVICE
+	case TESTER_MODULE_CASE_GNA_TEST:
+		cd->tester_case_interface = &tester_interface_gna_test;
+		break;
+#endif
 	default:
 		comp_err(dev, "Invalid config, unknown test type");
 		rfree(cd);

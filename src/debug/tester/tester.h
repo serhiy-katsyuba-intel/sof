@@ -17,6 +17,7 @@
 #define TESTER_MODULE_CASE_NO_TEST  0
 #define TESTER_MODULE_CASE_DUMMY_TEST 1
 #define TESTER_MODULE_CASE_SIMPLE_DRAM_TEST 2
+#define TESTER_MODULE_CASE_GNA_TEST 3
 
 struct tester_init_config {
 	struct ipc4_base_module_cfg ipc4_cfg;

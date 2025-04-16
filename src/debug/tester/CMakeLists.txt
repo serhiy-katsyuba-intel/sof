@@ -6,6 +6,10 @@ set(base_files
   tester_simple_dram_test.c
 )
 
+if(CONFIG_INFERENCE_SERVICE)
+  list(APPEND base_files tester_gna_test.c)
+endif()
+
 is_zephyr(zephyr)
 if(zephyr) ###  Zephyr ###
 
