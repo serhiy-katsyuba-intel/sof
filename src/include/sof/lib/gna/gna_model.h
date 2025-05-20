@@ -49,7 +49,7 @@ struct gna_model_ctx {
 
 static inline bool gna_is_scratch_shared(struct gna_model_ctx *model_ctx)
 {
-	return model_ctx->scratch_ptr != model_ctx->gna_extra_scratch_buffer;
+	return model_ctx->scratch_ptr == model_ctx->gna_extra_scratch_buffer;
 }
 
 static inline size_t gna_model_get_input_buff_size(struct gna_model_ctx *model_ctx)
