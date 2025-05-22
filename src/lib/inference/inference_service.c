@@ -83,6 +83,7 @@ struct gna_instance_data *inference_init(void)
 
 	return gna;
 }
+EXPORT_SYMBOL(inference_init);
 
 int inference_model_init(struct inference_model *model,
 			 struct gna_instance_data *gna,
@@ -133,6 +134,7 @@ model_err:
 	rfree(gna->model_ctx);
 	return ret;
 }
+EXPORT_SYMBOL(inference_model_init);
 
 int inference_model_release(struct gna_instance_data *gna)
 {
@@ -158,12 +160,14 @@ int inference_model_release(struct gna_instance_data *gna)
 
 	return 0;
 }
+EXPORT_SYMBOL(inference_model_release);
 
 uint32_t inference_get_model_ctx_size(struct inference_model *model)
 {
 	return sizeof(struct gna_model_ctx) +
 	       gna_model_get_extra_scratch(model->data, model->size);
 }
+EXPORT_SYMBOL(inference_get_model_ctx_size);
 
 int inference_request_init(struct gna_instance_data *gna, uint32_t request_ctx_size)
 {
@@ -197,6 +201,7 @@ req_err:
 	rfree(gna->request_ctx);
 	return ret;
 }
+EXPORT_SYMBOL(inference_request_init);
 
 int inference_request_start_async(struct gna_instance_data *gna)
 {
@@ -215,6 +220,7 @@ int inference_request_start_async(struct gna_instance_data *gna)
 
 	return 0;
 }
+EXPORT_SYMBOL(inference_request_start_async);
 
 int inference_request_start_yield(struct gna_instance_data *gna)
 {
@@ -238,6 +244,7 @@ int inference_request_start_yield(struct gna_instance_data *gna)
 
 	return 0;
 }
+EXPORT_SYMBOL(inference_request_start_yield);
 
 int inference_request_query_status(struct gna_instance_data *gna)
 {
@@ -257,6 +264,7 @@ int inference_request_query_status(struct gna_instance_data *gna)
 		return REQUEST_ERROR;
 	}
 }
+EXPORT_SYMBOL(inference_request_query_status);
 
 int inference_get_model_scaling_factors(struct gna_model_ctx *model_ctx,
 					struct scaling_factors *factors)
@@ -273,6 +281,7 @@ int inference_get_model_scaling_factors(struct gna_model_ctx *model_ctx,
 
 	return 0;
 }
+EXPORT_SYMBOL(inference_get_model_scaling_factors);
 
 uint32_t inference_get_request_ctx_size(struct gna_model_ctx *model_ctx)
 {
@@ -283,6 +292,7 @@ uint32_t inference_get_request_ctx_size(struct gna_model_ctx *model_ctx)
 
 	return gna_request_get_size(model_ctx);
 }
+EXPORT_SYMBOL(inference_get_request_ctx_size);
 
 int inference_request_reset(struct gna_instance_data *gna)
 {
@@ -293,6 +303,7 @@ int inference_request_reset(struct gna_instance_data *gna)
 
 	return gna_request_reset(gna);
 }
+EXPORT_SYMBOL(inference_request_reset);
 
 int inference_request_release(struct gna_instance_data *gna)
 {
@@ -307,6 +318,7 @@ int inference_request_release(struct gna_instance_data *gna)
 
 	return 0;
 }
+EXPORT_SYMBOL(inference_request_release);
 
 void inference_free(struct gna_instance_data *gna)
 {
@@ -327,3 +339,4 @@ void inference_free(struct gna_instance_data *gna)
 	if (gna)
 		rfree(gna);
 }
+EXPORT_SYMBOL(inference_free);
