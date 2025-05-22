@@ -40,11 +40,6 @@ LOG_MODULE_REGISTER(tester, CONFIG_SOF_LOG_LEVEL);
 
 SOF_DEFINE_REG_UUID(tester);
 
-struct tester_init_config {
-	struct ipc4_base_module_cfg ipc4_cfg;
-	int32_t test_type;
-} __attribute__((packed, aligned(4)));
-
 static int tester_init(struct processing_module *mod)
 {
 	struct module_data *md = &mod->priv;
@@ -54,7 +49,7 @@ static int tester_init(struct processing_module *mod)
 	struct tester_module_data *cd = NULL;
 	int ret = 0;
 
-	if (bs != sizeof(struct tester_init_config)) {
+	if (bs < sizeof(struct tester_init_config)) {
 		comp_err(dev, "Invalid config");
 		return -EINVAL;
 	}

@@ -12,10 +12,16 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <module/module/interface.h>
+#include <sof/audio/component.h>
 
 #define TESTER_MODULE_CASE_NO_TEST  0
 #define TESTER_MODULE_CASE_DUMMY_TEST 1
 #define TESTER_MODULE_CASE_SIMPLE_DRAM_TEST 2
+
+struct tester_init_config {
+	struct ipc4_base_module_cfg ipc4_cfg;
+	int32_t test_type;
+} __attribute__((packed, aligned(4)));
 
 /**
  * API of a test case
