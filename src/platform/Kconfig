@@ -51,6 +51,13 @@ config NOVALAKE
 	help
 	  Select if your target platform is Novalake-compatible
 
+config TITANLAKE
+	bool "Build for Titanlake"
+	select ACE
+	select ACE_VERSION_4_0
+	help
+	  Select if your target platform is Titanlake-compatible
+
 config LIBRARY
 	bool "Build Library"
 	help

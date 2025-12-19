@@ -92,6 +92,12 @@ class PlatformConfig:
 # These cannot be built by everyone out of the box yet.
 # For instance: there's no open-source toolchain available for them yet.
 extra_platform_configs = {
+	"ttl" : PlatformConfig(
+		"intel", "intel_adsp/ace40/ttl",
+		f"RI-2022.10{xtensa_tools_version_postfix}",
+		"ace4px_HiFi5MMU_PIF_nlib",
+		ipc4 = True
+	),
 	"wcl-sim" : PlatformConfig(
 		"intel", "intel_adsp/ace30/wcl/sim",
 		f"RI-2022.10{xtensa_tools_version_postfix}",
