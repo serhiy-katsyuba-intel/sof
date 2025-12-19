@@ -44,9 +44,9 @@ manifest:
       revision: e3a03f5ec7d8d33be705c5ce8a632d998ce9b4d1
 
     - name: zephyr
-      repo-path: zephyr
-      revision: c162980efd9ad8616d0e2fe886ca917d8d8d240a
-      remote: zephyrproject
+      repo-path: os.rtos.zephyr.zephyr
+      revision: d60ede29e1750c68d0a7f6408967c15072530ea5
+      remote: intel
 
       # Import some projects listed in zephyr/west.yml@revision
       #
