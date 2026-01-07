@@ -1,0 +1,14 @@
+
+/ {
+        gna34: gna@100000 {
+                        compatible = "intel,gna34";
+                        reg = <0x100000 0x800>;
+                        interrupts = <0x02 0 0>;
+                        interrupt-parent = <&ace_intc>;
+                        //power-domain = <&ml0_domain>;
+        };
+
+};
+&gna34 {
+	status = "okay";
+};
