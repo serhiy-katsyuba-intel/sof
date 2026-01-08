@@ -88,6 +88,7 @@ typedef struct _gna_model_internal {
 	void *out_space;
 	void *state_space;
 	void *ld_space;
+	__aligned(128) uint32_t pad[0];
 } gna_model_internal;
 BUILD_ASSERT(sizeof(gna_model_internal) == SIZE_OF_GNA_MODEL_DB_ELEM_T,
 	     "Worong size of gna_model_internal");
