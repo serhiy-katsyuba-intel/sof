@@ -1,0 +1,142 @@
+[
+    {
+        "platform": "mtl",
+        "fw": "mtl",
+        "key": "mtl_private_key.pem",
+        "args": "",
+        "make_cmd": "mtl_defconfig",
+        "xtensa_core": "ace10_LX7HiFi4_2022_10",
+        "xtensa_config": "RI-2022.10-linux",
+        "zephyr_toolchain_variant": "xt-clang"
+    },
+    {
+        "platform": "mtl_fpga",
+        "fw": "mtl",
+        "key": "mtl_private_key.pem",
+        "args": "-o ./sof/app/overlays/mtl/fpga_overlay.conf",
+        "make_cmd": "mtl_defconfig",
+        "xtensa_core": "ace10_LX7HiFi4_2022_10",
+        "xtensa_config": "RI-2022.10-linux",
+        "zephyr_toolchain_variant": "xt-clang"
+    },
+    {
+        "platform": "lnl",
+        "fw": "lnl",
+        "key": "mtl_private_key.pem",
+        "args": "",
+        "make_cmd": "lnl_defconfig",
+        "xtensa_core": "ace10_LX7HiFi4_2022_10",
+        "xtensa_config": "RI-2022.10-linux",
+        "zephyr_toolchain_variant": "xt-clang"
+    },
+    {
+        "platform": "lnl_fpga",
+        "fw": "lnl",
+        "key": "mtl_private_key.pem",
+        "args": "-o ./sof/app/overlays/lnl/fpga_overlay.conf",
+        "make_cmd": "lnl_defconfig",
+        "xtensa_core": "ace10_LX7HiFi4_2022_10",
+        "xtensa_config": "RI-2022.10-linux",
+        "zephyr_toolchain_variant": "xt-clang"
+    },
+    {
+        "platform": "ptl",
+        "fw": "ptl",
+        "key": "ptl_private_key.pem",
+        "args": "",
+        "make_cmd": "ptl_defconfig",
+        "xtensa_core": "ace30_LX7HiFi4_PIF",
+        "xtensa_config": "RI-2022.10-linux",
+        "zephyr_toolchain_variant": "xt-clang"
+    },
+    {
+        "platform": "ptl_fpga",
+        "fw": "ptl",
+        "key": "ptl_private_key.pem",
+        "args": "-o ./sof/app/overlays/ptl/fpga_overlay.conf",
+        "make_cmd": "ptl_defconfig",
+        "xtensa_core": "ace30_LX7HiFi4_PIF",
+        "xtensa_config": "RI-2022.10-linux",
+        "zephyr_toolchain_variant": "xt-clang"
+    },
+    {
+        "platform": "wcl",
+        "fw": "wcl",
+        "key": "ptl_private_key.pem",
+        "args": "",
+        "make_cmd": "wcl_defconfig",
+        "xtensa_core": "ace30_LX7HiFi4_PIF",
+        "xtensa_config": "RI-2022.10-linux",
+        "zephyr_toolchain_variant": "xt-clang"
+    },
+    {
+        "platform": "wcl_fpga",
+        "fw": "wcl",
+        "key": "ptl_private_key.pem",
+        "args": "-o ./sof/app/overlays/wcl/fpga_overlay.conf",
+        "make_cmd": "wcl_defconfig",
+        "xtensa_core": "ace30_LX7HiFi4_PIF",
+        "xtensa_config": "RI-2022.10-linux",
+        "zephyr_toolchain_variant": "xt-clang"
+    },
+    {
+        "platform": "nvl",
+        "fw": "nvl",
+        "key": "nvl_private_key.pem",
+        "args": "",
+        "make_cmd": "nvl_defconfig",
+        "xtensa_core": "ace4px_HiFi5MMU_PIF_nlib",
+        "xtensa_config": "RI-2022.10-linux",
+        "zephyr_toolchain_variant": "xt-clang"
+    },
+    {
+        "platform": "nvl_fpga",
+        "fw": "nvl",
+        "key": "nvl_private_key.pem",
+        "args": "-o ./sof/app/overlays/nvl/fpga_overlay.conf",
+        "make_cmd": "nvl_defconfig",
+        "xtensa_core": "ace4px_HiFi5MMU_PIF_nlib",
+        "xtensa_config": "RI-2022.10-linux",
+        "zephyr_toolchain_variant": "xt-clang"
+    },
+    {
+        "platform": "nvl-s",
+        "fw": "nvl-s",
+        "key": "nvl_private_key.pem",
+        "args": "",
+        "make_cmd": "nvl_defconfig",
+        "xtensa_core": "ace4px_HiFi5MMU_PIF_nlib",
+        "xtensa_config": "RI-2022.10-linux",
+        "zephyr_toolchain_variant": "xt-clang"
+    },
+    {
+        "platform": "nvl-s_fpga",
+        "fw": "nvl-s",
+        "key": "nvl_private_key.pem",
+        "args": "-o ./sof/app/overlays/nvl/fpga_overlay.conf",
+        "make_cmd": "nvl_defconfig",
+        "xtensa_core": "ace4px_HiFi5MMU_PIF_nlib",
+        "xtensa_config": "RI-2022.10-linux",
+        "zephyr_toolchain_variant": "xt-clang"
+    },
+    {
+        "platform": "ttl",
+        "fw": "ttl",
+        "key": "nvl_private_key.pem",
+        "args": "",
+        "make_cmd": "ttl_defconfig",
+        "xtensa_core": "ace4px_HiFi5MMU_PIF_nlib",
+        "xtensa_config": "RI-2022.10-linux",
+        "zephyr_toolchain_variant": "xt-clang"
+    },
+    {
+        "platform": "ttl_fpga",
+        "fw": "ttl",
+        "key": "nvl_private_key.pem",
+        "args": "-o ./sof/app/overlays/ttl/fpga_overlay.conf",
+        "make_cmd": "ttl_defconfig",
+        "xtensa_core": "ace4px_HiFi5MMU_PIF_nlib",
+        "xtensa_config": "RI-2022.10-linux",
+        "zephyr_toolchain_variant": "xt-clang"
+    }
+]
