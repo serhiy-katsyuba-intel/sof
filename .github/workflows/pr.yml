@@ -1,0 +1,39 @@
+---
+name: pr build
+run-name: 'SOF_CONVERGED_PR_${{ github.event.number }}.${{ github.run_number }}.${{ github.run_attempt }}'
+
+# run pr checks
+on: [pull_request]
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  generate-matrix:
+    name: 'Generate matrix'
+    runs-on: [self-hosted, Linux]
+    container:
+      image: harbor.pact.intel.com/qba/cig-sof-fw-zephyr:v2.2
+    outputs:
+      matrix: ${{ steps.generate-matrix.outputs.matrix }}
+    steps:
+      - name: checkout drivers.audio.firmware.converged
+        uses: actions/checkout@v4
+
+      - name: generate matrix
+        id: generate-matrix
+        run: |
+          matrix="$(jq -c . < .github/matrix/build.json)"
+
+          echo "matrix=${matrix}"
+          echo "matrix=${matrix}" >> $GITHUB_OUTPUT
+
+  pr-build:
+    needs: [generate-matrix]
+    name: 'Build FW'
+    uses: ./.github/workflows/build.yml
+    with:
+      BUILD_JSON: ${{ needs.generate-matrix.outputs.matrix }}
+      VERSION: ${{ github.event.number }}.${{ github.run_number }}.${{ github.run_attempt }}
+      VERSION_NUMBER: ${{ github.run_number }}
