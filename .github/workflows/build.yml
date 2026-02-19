@@ -1,0 +1,156 @@
+---
+name: build
+
+on:
+  workflow_call:
+    inputs:
+      BUILD_TYPE:
+        type: string
+        required: false
+      BUILD_EXTRA_ARGS:
+        type: string
+        required: false
+        default: '-p -i 4'
+      BUILD_JSON:
+        type: string
+        required: true
+      SOF_REPO:
+        type: string
+        required: false
+      SOF_SHA:
+        type: string
+        required: false
+      VERSION:
+        type: string
+        required: true
+      VERSION_NUMBER:
+        type: string
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  xtensa-build:
+    name: 'Build ${{ matrix.target.platform }}'
+    runs-on: [self-hosted, Linux]
+    container:
+      image: harbor.pact.intel.com/qba/cig-sof-fw-zephyr:v2.2
+    permissions:
+      id-token: write
+      contents: read
+    environment: development
+    env:
+      MAKE_COMMAND: ${{ matrix.target.make_cmd }}
+      XTENSA_CORE: ${{ matrix.target.xtensa_core }}
+      CONFIG: ${{ matrix.target.xtensa_config }}
+      MEU_PATH: ${{ matrix.target.meu_path }}
+      XTENSAD_LICENSE_FILE: 84300@xtensa03p.elic.intel.com
+      GH_TOKEN: ''
+      VERSION_NUMBER: ${{ inputs.VERSION_NUMBER }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - ${{ fromJSON(inputs.BUILD_JSON) }}
+
+    steps:
+      - name: Clean Workspace
+        run: |
+          # set dotglob so rm will remove dot files and dirs - (.west, etc.)
+          shopt -s dotglob
+          pwd
+          ls -la ./
+          rm -rf ./* || true
+          rm -rf ../zephyr || true
+          rm -rf ./.??* || true
+          rm -rf ../.??* || true
+          ls -la ./
+
+      - uses: intel-innersource/frameworks.actions.certs@latest  # ensure Intel CAs configured for job
+      - name: Get secrets from AAM
+        uses: intel-innersource/frameworks.actions.conjur-fetch@v1
+        with:
+          host_id: "host/github-apps-oidc/40726-convergedd"
+          secrets: >
+            FMSPAMVLT101/LOBUSER_prapp/AAM-DV-40726-SSTDEV/Operating System-UnmanagedAccounts-AllOSs-GITHUB_TOKEN-sys-sst-dev/password|GH_TOKEN;
+
+      - name: Pre Step - set GH_TOKEN env
+        run: |
+          echo "GH_TOKEN=$GH_TOKEN" >> "$GITHUB_ENV"
+
+      - name: checkout drivers.audio.firmware.converged
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.SOF_REPO != '' && inputs.SOF_REPO || 'intel-innersource/drivers.audio.firmware.converged' }}
+          ref: ${{ inputs.SOF_SHA != '' && inputs.SOF_SHA || '' }}
+          submodules: recursive
+          path: sof
+
+      - name: pull codecs
+        run: |
+          # cp /nfs/igk/disks/igk_sof/SCME/CODEC_BUILD/WEST/*.*
+
+      - name: Set up Git creds for west
+        run: |
+          touch $HOME/.git-credentials
+          touch $HOME/.gitconfig
+
+          git config --global credential.helper 'store --file=$HOME/.git-credentials'
+
+          # West pulls the submodules to above directory so .. is required for safe directory
+          # in this scenario THIS repo will be used as sof base and not upstream so there is no point
+          # in west init -l .
+          git config --global --add safe.directory "${PWD}"
+          git config --global --add safe.directory "${PWD}/zephyr"
+          git config --global --add safe.directory "${PWD}/sof"
+          git config --global --add safe.directory "${PWD}/.."
+
+          # Allow west to conenct to intel-innersource/os.rtos.zephyr.zephyr
+          echo -e "https://$GH_TOKEN:$GH_TOKEN@github.com/intel-innersource/os.rtos.zephyr.zephyr" >> $HOME/.git-credentials
+
+      - name: west update
+        working-directory: sof
+        run: |
+          west init -l
+          west update --narrow --fetch-opt=--depth=5
+
+      - name: build fw
+        id: build
+        env:
+          OUTPUT_DIR: "./build"
+        run: |
+          set +e
+
+          mkdir -p "${OUTPUT_DIR}"
+          mkdir -p build-sof-staging
+
+          touch build-sof-staging/stdout.log
+
+          if [[ "${{ inputs.BUILD_TYPE }}" != "" ]]; then
+            west config rimage.extra-args '${{ inputs.BUILD_EXTRA_ARGS }}'
+          fi
+
+          XTENSA_TOOLS_ROOT=/root/xtensa/XtDevTools \
+            python ./sof/scripts/xtensa-build-zephyr.py \
+            --no-interactive -b $VERSION_NUMBER -u ${{ matrix.target.fw }} \
+            -k /root/keys/${{ matrix.target.key }} ${{ matrix.target.args }} | tee build-sof-staging/stdout.log
+
+          build_rc=$?
+
+          cp -vr ./build-sof-staging/sof/ "${OUTPUT_DIR}"
+          cp -vr ./build-sof-staging/sof-info "${OUTPUT_DIR}"
+          cp -vr ./build-sof-staging/tools "${OUTPUT_DIR}"
+
+          set -e
+          exit ${build_rc}
+
+      - name: upload artifacts
+        if: steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.target.platform }}-${{ inputs.VERSION }}
+          path: |
+            build/*
+          retention-days: 20
