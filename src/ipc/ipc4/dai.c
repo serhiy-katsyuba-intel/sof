@@ -249,6 +249,13 @@ void dai_dma_release(struct dai_data *dd, struct comp_dev *dev)
 		dd->chan->dev_data = NULL;
 		dd->chan = NULL;
 	}
+
+	if (dd->uaol_fb_chan) {
+		dma_stop(dd->uaol_fb_chan->dma->z_dev, dd->uaol_fb_chan->index);
+		dma_release_channel(dd->uaol_fb_chan->dma->z_dev, dd->uaol_fb_chan->index);
+		dd->uaol_fb_chan->dev_data = NULL;
+		dd->uaol_fb_chan = NULL;
+	}
 }
 
 void dai_release_llp_slot(struct dai_data *dd)
