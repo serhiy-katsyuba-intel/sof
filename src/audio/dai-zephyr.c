@@ -276,6 +276,49 @@ static int dai_get_fifo(struct dai *dai, int direction, int stream_id)
 	return fifo_address;
 }
 
+static void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
+{
+	assert(dd && dd->uaol_fb_chan && dd->uaol_fb_buf);
+	///assert(dev->direction == SOF_IPC_STREAM_PLAYBACK);
+
+	struct dma_status stat = {0};
+	int ret = sof_dma_get_status(dd->uaol_fb_chan->dma, dd->uaol_fb_chan->index, &stat);
+	if (ret) {
+		comp_err(dev, "Failed to get UAOL feedback DMA status: %d", ret);
+		return;
+	}
+
+	if (stat.pending_length < 4) {
+		/* TODO: That's a normal case, remove this comp_dbg() ??? */
+		comp_dbg(dev, "Not enough data in UAOL feedback buffer: %d bytes", stat.pending_length);
+		return;
+	}
+
+	assert(dd->uaol_fb_buf_size >= 4);
+	if (stat.read_position < 0 || stat.read_position > dd->uaol_fb_buf_size - 4) {
+		comp_err(dev, "Invalid read position in UAOL feedback buffer: %d", stat.read_position);
+		return;
+	}
+
+	//TODO: should we read last 4 bytes, not just current 4 bytes???
+	uint32_t feedback_clock = dd->uaol_fb_buf[stat.read_position / 4];
+
+	ret = sof_dma_reload(dd->uaol_fb_chan->dma, dd->uaol_fb_chan->index, 4);
+	if (ret < 0) {
+		comp_err(dev, "Failed to reload UAOL feedback DMA: %d", ret);
+		return;
+	}
+
+	comp_info(dev, "UAOL feedback clock: %u", feedback_clock);
+
+/*
+	TODO:
+	* sanity check if received data looks like a valid clock
+	* update eSRC with the received clock
+	* if enough drift collected then adjust UAOL pace
+*/
+}
+
 /* this is called by DMA driver every time descriptor has completed */
 static enum sof_dma_cb_status
 dai_dma_cb(struct dai_data *dd, struct comp_dev *dev, uint32_t bytes,
@@ -427,6 +470,11 @@ dai_dma_cb(struct dai_data *dd, struct comp_dev *dev, uint32_t bytes,
 		/* update host position (in bytes offset) for drivers */
 		dd->total_data_processed += bytes;
 	}
+
+	if (dd->uaol_fb_buf && dd->uaol_fb_chan) {
+		process_uaol_feedback(dev, dd);
+	}
+
 #ifdef CONFIG_SOF_TELEMETRY_IO_PERFORMANCE_MEASUREMENTS
 	/* Increment performance counters */
 	io_perf_monitor_update_data(dd->io_perf_dai_byte_count, bytes);
@@ -632,6 +680,12 @@ __cold void dai_common_free(struct dai_data *dd)
 		dd->chan_index = -EINVAL;
 	}
 
+	if (dd->uaol_fb_chan) {
+		sof_dma_release_channel(dd->dma, dd->uaol_fb_chan->index);
+		dd->uaol_fb_chan->dev_data = NULL;
+		dd->uaol_fb_chan = NULL;
+	}
+
 	sof_dma_put(dd->dma);
 
 	dai_release_llp_slot(dd);
@@ -639,6 +693,18 @@ __cold void dai_common_free(struct dai_data *dd)
 	dai_put(dd->dai);
 
 	rfree(dd->dai_spec_config);
+
+	if (dd->z_config_uaol_fb) {
+		rfree(dd->z_config_uaol_fb->head_block);
+		rfree(dd->z_config_uaol_fb);
+		dd->z_config_uaol_fb = NULL;
+	}
+
+	if (dd->uaol_fb_buf) {
+		rfree(dd->uaol_fb_buf);
+		dd->uaol_fb_buf = NULL;
+		dd->uaol_fb_buf_size = 0;
+	}
 }
 
 __cold static void dai_free(struct comp_dev *dev)
@@ -1145,6 +1211,99 @@ static int dai_params(struct comp_dev *dev, struct sof_ipc_stream_params *params
 	return dai_common_params(dd, dev, params);
 }
 
+static int setup_uaol_feedback_dma(struct dai_data *dd, struct comp_dev *dev)
+{
+	struct ipc_config_dai *dai = &dd->ipc_config;
+	struct dma_config *dma_cfg;
+
+	if (dai->type != SOF_DAI_INTEL_UAOL || dai->direction != SOF_IPC_STREAM_PLAYBACK)
+		return 0;
+
+	/* UAOL feedback is an optional 2nd DMA link (1st is audio DMA link) */
+	assert(GTW_DMA_DEVICE_MAX_COUNT >= 2);
+	if (!dai->host_dma_config[1] || !dai->host_dma_config[1]->pre_allocated_by_host) {
+		comp_info(dev, "No UAOL feedback DMA link supplied by host!");
+		return 0;
+	}
+
+	int channel = dai->host_dma_config[1]->dma_channel_id;
+	comp_dbg(dev, "UAOL feedback channel = %d", channel);
+
+	/*
+	 * UAOL feedback endpoint payload is 4 bytes.
+	 * Hi-Speed USB microframe period is 125 us (8 per 1 ms).
+	 * Double the buffer size just in case.
+	 */
+	dd->uaol_fb_buf_size = 4 * 8 * 2;
+
+	/* TODO: perhaps get alignment by reading DMA alignment attribute? */
+	dd->uaol_fb_buf = (uint32_t *)rballoc_align(SOF_MEM_FLAG_USER | SOF_MEM_FLAG_DMA,
+						      dd->uaol_fb_buf_size, 64);
+	if (!dd->uaol_fb_buf) {
+		comp_err(dev, "UAOL feedback buffer allocation failed!");
+		return -ENOMEM;
+	}
+	memset(dd->uaol_fb_buf, 0, dd->uaol_fb_buf_size);
+
+	dma_cfg = rballoc(SOF_MEM_FLAG_USER | SOF_MEM_FLAG_COHERENT | SOF_MEM_FLAG_DMA,
+			  sizeof(struct dma_config));
+	if (!dma_cfg) {
+		rfree(dd->uaol_fb_buf);
+		dd->uaol_fb_buf = NULL;
+		comp_err(dev, "dma_cfg allocation failed");
+		return -ENOMEM;
+	}
+
+	memset(dma_cfg, 0, sizeof(struct dma_config));
+	dma_cfg->dma_slot = 0;
+	dma_cfg->channel_direction = PERIPHERAL_TO_MEMORY;
+	dma_cfg->source_data_size = 4;
+	dma_cfg->dest_data_size = 4;
+	dma_cfg->source_burst_length = 4;
+	dma_cfg->dest_burst_length = 4;
+	dma_cfg->cyclic = 1;
+	dma_cfg->block_count = 1;
+
+	dma_cfg->head_block = rballoc(SOF_MEM_FLAG_USER | SOF_MEM_FLAG_COHERENT | SOF_MEM_FLAG_DMA,
+					      sizeof(struct dma_block_config));
+	if (!dma_cfg->head_block) {
+		rfree(dma_cfg);
+		rfree(dd->uaol_fb_buf);
+		dd->uaol_fb_buf = NULL;
+		comp_err(dev, "dma_block_config allocation failed");
+		return -ENOMEM;
+	}
+
+	memset(dma_cfg->head_block, 0, sizeof(struct dma_block_config));
+	dma_cfg->head_block->dest_scatter_en = 0;
+	dma_cfg->head_block->block_size = dd->uaol_fb_buf_size;
+	dma_cfg->head_block->source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
+	dma_cfg->head_block->dest_addr_adj = DMA_ADDR_ADJ_DECREMENT;	/* WHY? IS THIS OK??? */
+	dma_cfg->head_block->source_address = 0;
+	dma_cfg->head_block->dest_address = (uint32_t)local_to_host(dd->uaol_fb_buf);
+	dma_cfg->head_block->next_block = dma_cfg->head_block;
+	dd->z_config_uaol_fb = dma_cfg;
+
+	/* get DMA channel */
+	channel = sof_dma_request_channel(dd->dma, channel);
+	if (channel < 0) {
+		rfree(dma_cfg->head_block);
+		rfree(dma_cfg);
+		rfree(dd->uaol_fb_buf);
+		dd->uaol_fb_buf = NULL;
+		dd->uaol_fb_chan = NULL;
+		comp_err(dev, "dma_request_channel() failed");
+		return -EIO;
+	}
+
+	dd->uaol_fb_chan = &dd->dma->chan[channel];
+	dd->uaol_fb_chan->dev_data = dd;
+
+	comp_dbg(dev, "New configured UAOL feedback DMA channel index %d", dd->uaol_fb_chan->index);
+
+	return 0;
+}
+
 int dai_common_config_prepare(struct dai_data *dd, struct comp_dev *dev)
 {
 	int channel;
@@ -1185,6 +1344,9 @@ int dai_common_config_prepare(struct dai_data *dd, struct comp_dev *dev)
 	comp_dbg(dev, "new configured dma channel index %d",
 		 dd->chan_index);
 
+	/* Does nothing when non-UAOL gateway */
+	setup_uaol_feedback_dma(dd, dev);
+
 	return 0;
 }
 
@@ -1208,6 +1370,8 @@ int dai_common_prepare(struct dai_data *dd, struct comp_dev *dev)
 
 	/* clear dma buffer to avoid pop noise */
 	buffer_zero(dd->dma_buffer);
+	if (dd->uaol_fb_buf)
+		memset(dd->uaol_fb_buf, 0, dd->uaol_fb_buf_size);
 
 	/* dma reconfig not required if XRUN handling */
 	if (dd->xrun) {
@@ -1219,6 +1383,12 @@ int dai_common_prepare(struct dai_data *dd, struct comp_dev *dev)
 	ret = sof_dma_config(dd->dma, dd->chan_index, dd->z_config);
 	if (ret < 0)
 		comp_set_state(dev, COMP_TRIGGER_RESET);
+
+	if (dd->uaol_fb_chan) {
+		ret = sof_dma_config(dd->uaol_fb_chan->dma, dd->uaol_fb_chan->index, dd->z_config_uaol_fb);
+		if (ret < 0)
+			comp_set_state(dev, COMP_TRIGGER_RESET);
+	}
 
 	return ret;
 }
@@ -1267,6 +1437,18 @@ void dai_common_reset(struct dai_data *dd, struct comp_dev *dev)
 		dd->dma_buffer = NULL;
 	}
 
+	if (dd->z_config_uaol_fb) {
+		rfree(dd->z_config_uaol_fb->head_block);
+		rfree(dd->z_config_uaol_fb);
+		dd->z_config_uaol_fb = NULL;
+	}
+
+	if (dd->uaol_fb_buf) {
+		rfree(dd->uaol_fb_buf);
+		dd->uaol_fb_buf = NULL;
+		dd->uaol_fb_buf_size = 0;
+	}
+
 	dd->wallclock = 0;
 	dd->total_data_processed = 0;
 	dd->xrun = 0;
@@ -1307,6 +1489,12 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
 			if (ret < 0)
 				return ret;
 
+			if (dd->uaol_fb_chan) {
+				ret = sof_dma_start(dd->uaol_fb_chan->dma, dd->uaol_fb_chan->index);
+				if (ret < 0)
+					return ret;
+			}
+
 			/* start the DAI */
 			dai_trigger_op(dd->dai, cmd, dev->direction);
 		} else {
@@ -1323,6 +1511,8 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
 		if (dev->direction == SOF_IPC_STREAM_CAPTURE) {
 			buffer_zero(dd->dma_buffer);
 		}
+		if (dd->uaol_fb_buf)
+			memset(dd->uaol_fb_buf, 0, dd->uaol_fb_buf_size);
 
 		/* DMA driver and SOF's view of the DMA buffer's
 		 * read and write cursors must be the same to
@@ -1345,14 +1535,32 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
 			if (ret < 0)
 				return ret;
 
+			if (dd->uaol_fb_chan) {
+				ret = sof_dma_stop(dd->uaol_fb_chan->dma, dd->uaol_fb_chan->index);
+				if (ret < 0)
+					return ret;
+			}
+
 			/* dma_config needed after stop */
 			ret = sof_dma_config(dd->dma, dd->chan_index, dd->z_config);
 			if (ret < 0)
 				return ret;
 
+			if (dd->z_config_uaol_fb && dd->uaol_fb_chan) {
+				ret = sof_dma_config(dd->uaol_fb_chan->dma, dd->uaol_fb_chan->index, dd->z_config_uaol_fb);
+				if (ret < 0)
+					return ret;
+			}
+
 			ret = sof_dma_start(dd->dma, dd->chan_index);
 			if (ret < 0)
 				return ret;
+
+			if (dd->uaol_fb_chan) {
+				ret = sof_dma_start(dd->uaol_fb_chan->dma, dd->uaol_fb_chan->index);
+				if (ret < 0)
+					return ret;
+			}
 
 			/* start the DAI */
 			dai_trigger_op(dd->dai, cmd, dev->direction);
@@ -1379,6 +1587,9 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
  */
 #if CONFIG_COMP_DAI_STOP_TRIGGER_ORDER_REVERSE
 		ret = sof_dma_stop(dd->dma, dd->chan_index);
+		if (dd->uaol_fb_chan) {
+			ret = sof_dma_stop(dd->uaol_fb_chan->dma, dd->uaol_fb_chan->index);
+		}
 		dai_trigger_op(dd->dai, cmd, dev->direction);
 #else
 		dai_trigger_op(dd->dai, cmd, dev->direction);
@@ -1387,16 +1598,30 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
 			comp_warn(dev, "dma was stopped earlier");
 			ret = 0;
 		}
+
+		if (dd->uaol_fb_chan) {
+			ret = sof_dma_stop(dd->uaol_fb_chan->dma, dd->uaol_fb_chan->index);
+			if (ret) {
+				comp_warn(dev, "UAOL feedback dma was stopped earlier");
+				ret = 0;
+			}
+		}
 #endif
 		break;
 	case COMP_TRIGGER_PAUSE:
 		comp_dbg(dev, "PAUSE");
 #if CONFIG_COMP_DAI_STOP_TRIGGER_ORDER_REVERSE
 		ret = sof_dma_suspend(dd->dma, dd->chan_index);
+		if (dd->uaol_fb_chan) {
+			ret = sof_dma_suspend(dd->uaol_fb_chan->dma, dd->uaol_fb_chan->index);
+		}
 		dai_trigger_op(dd->dai, cmd, dev->direction);
 #else
 		dai_trigger_op(dd->dai, cmd, dev->direction);
 		ret = sof_dma_suspend(dd->dma, dd->chan_index);
+		if (dd->uaol_fb_chan) {
+			ret = sof_dma_suspend(dd->uaol_fb_chan->dma, dd->uaol_fb_chan->index);
+		}
 #endif
 		break;
 	case COMP_TRIGGER_PRE_START:

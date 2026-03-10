@@ -146,6 +146,11 @@ struct dai_data {
 
 	uint64_t wallclock;			/* wall clock at stream start */
 
+	struct dma_chan_data *uaol_fb_chan;
+	uint32_t *uaol_fb_buf;
+	size_t uaol_fb_buf_size;
+	struct dma_config *z_config_uaol_fb;
+
 	/*
 	 * flag indicating two-step stop/pause for DAI comp and DAI DMA.
 	 * DAI stop occurs during STREAM_TRIG_STOP IPC and DMA stop during DAI_CONFIG IPC with
