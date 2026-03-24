@@ -45,6 +45,7 @@ manifest:
 
     - name: zephyr
       repo-path: os.rtos.zephyr.zephyr
+      path: zephyr
       revision: d60ede29e1750c68d0a7f6408967c15072530ea5
       remote: intel
 
@@ -67,3 +68,5 @@ manifest:
     # Changes to submanifests/*.yml files _are_ effective; these have no
     # specified 'revision:'
     import: submanifests
+    path: sof
+    west-commands: zephyr/scripts/west-commands.yml
