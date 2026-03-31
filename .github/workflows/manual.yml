@@ -1,0 +1,63 @@
+---
+name: Manual build
+run-name: 'SOF_CONVERGED_MANUAL_${{ github.run_number }}.${{ github.run_attempt }}'
+
+on:
+  workflow_dispatch:
+    inputs:
+      BUILD_TYPE:
+        description: |
+          BUILD TYPE: PV/RELEASE etc. When left empty no west config rimage.extra-args ... won't be executed!
+        type: string
+        required: false
+      BUILD_EXTRA_ARGS:
+        description: |
+          BUILD EXTRA ARGS: args that will be passed to west config rimage.extra-args command, if no BUILD TYPE is provided this command will not run!
+        type: string
+        required: false
+        default: '-p -i 4'
+      SOF_REPO:
+        description: |
+          SOF REPO: tell github which SOF repo to use
+        type: string
+        default: 'intel-innersource/drivers.audio.firmware.converged' 
+      SOF_SHA:
+        description: |
+          SOF SHA: tell github on top of which sha FW should be built
+        type: string
+        default: 'embargo' 
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  generate-matrix:
+    name: 'Generate matrix'
+    runs-on: [self-hosted, Linux]
+    container:
+      image: harbor.pact.intel.com/qba/cig-sof-fw-zephyr:v2.2
+    outputs:
+      matrix: ${{ steps.generate-matrix.outputs.matrix }}
+    steps:
+      - name: checkout drivers.audio.firmware.converged
+        uses: actions/checkout@v4
+
+      - name: generate matrix
+        id: generate-matrix
+        run: |
+          matrix="$(jq -c . < .github/matrix/build.json)"
+
+          echo "matrix=${matrix}"
+          echo "matrix=${matrix}" >> $GITHUB_OUTPUT
+
+  manual-build:
+    needs: [generate-matrix]
+    name: 'Build FW'
+    uses: ./.github/workflows/build.yml
+    with:
+      BUILD_JSON: ${{ needs.generate-matrix.outputs.matrix }}
+      SOF_REPO: ${{ inputs.SOF_REPO }}
+      SOF_SHA: ${{ inputs.SOF_SHA }}
+      VERSION: ${{ github.event.number }}.${{ github.run_number }}.${{ github.run_attempt }}
+      VERSION_NUMBER: ${{ github.run_number }}
