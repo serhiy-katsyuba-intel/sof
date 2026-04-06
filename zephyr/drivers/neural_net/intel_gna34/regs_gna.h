@@ -22,12 +22,37 @@
 #ifndef ZEPHYR_NEURAL_NET_INTEL_GNA34_REGS_GNA_H_
 #define ZEPHYR_NEURAL_NET_INTEL_GNA34_REGS_GNA_H_
 
+#include "gna_defs_fw.h"
+
 /*! --------------- ML IP registers - GNA --------------- */
 /**
  * Status Register.
  */
 typedef union _GNASTS_REG {
 	uint32_t value;
+#if CONFIGFW_ADSP_GNA_VERSION >= CONFIGFW_ADSP_GNA_4_5_VERSION
+	struct {
+		uint32_t scr_completed: 1;     /* 00:00 ROV    - scoring completed */
+		uint32_t susp_bp_match: 1;     /* 01:01 ROV    - suspended breakpoint match */
+		uint32_t __res_02: 1;          /* 02:02 RO     - reserved */
+		uint32_t comp_stats_valid: 1;  /* 03:03 ROV    - compute statistics valid */
+		uint32_t __res_07_04: 4;       /* 04:07 RO     - reserved */
+		uint32_t hw_par_oor_err: 1;    /* 08:08 ROV    - parameter out of range */
+		uint32_t acpe: 1;              /* 09:09 ROV    - Access Control Policy Error */
+		uint32_t __res_15_10: 6;       /* 10:15 RO     - reserved */
+		uint32_t hw_out_full: 1;       /* 16:16 RW1C/V - output buffer is currently full */
+		uint32_t score_saturated: 1;   /* 17:17 RW1C/V - score has reached saturation */
+		uint32_t __res_19_18: 2;       /* 18:19 RO     - reserved */
+		uint32_t drdierr: 1;           /* 20:20 RW1C/V - DMA Read Interconnect Error */
+		uint32_t drdterr: 1;           /* 21:21 RW1C/V - DMA Read Target Error */
+		uint32_t dwrierr: 1;           /* 22:22 RW1C/V - DMA Write Interconnect Error */
+		uint32_t dwrterr: 1;           /* 23:23 RW1C/V - DMA Write Target Error */
+		uint32_t __res_28_24: 5;       /* 24:28 RO     - reserved */
+		uint32_t pmtv: 1;             /* 29:29 ROV    - preemption valid */
+		uint32_t __res_30: 1;          /* 30:30 RO     - reserved */
+		uint32_t intr_status: 1;       /* 31:31 ROV    - interrupt status */
+	} bits;
+#else
 	struct {
 		uint32_t scr_completed: 1;     /* 00:00 ROV    - scoring completed */
 		uint32_t susp_bp_match: 1;     /* 01:01 ROV    - suspended breakpoint match */
@@ -48,6 +73,7 @@ typedef union _GNASTS_REG {
 		uint32_t aeip: 1;              /* 30:30 ROV    - Autonomous Extension in progress */
 		uint32_t intr_status: 1;       /* 31:31 ROV    - interrupt status */
 	} bits;
+#endif /* CONFIGFW_ADSP_GNA_VERSION >= CONFIGFW_ADSP_GNA_4_5_VERSION */
 } GNASTS_REG;
 BUILD_ASSERT(sizeof(GNASTS_REG) == 4, "Wrong size of GNASTS_REG");
 
@@ -56,6 +82,29 @@ BUILD_ASSERT(sizeof(GNASTS_REG) == 4, "Wrong size of GNASTS_REG");
  */
 typedef union _GNACTL_REG {
 	uint32_t value;
+#if CONFIGFW_ADSP_GNA_VERSION >= CONFIGFW_ADSP_GNA_4_5_VERSION
+	struct {
+		uint32_t start_accel: 1;     /* 00:00 RW1S/V - start accelerator */
+		uint32_t pmtexec: 1;         /* 01:01 RW1S/V - Preempt GNA Execution */
+		uint32_t abort_clr_accel: 1; /* 02:02 WO     - abort/clear accelerator */
+		uint32_t pause_accel: 1;     /* 03:03 RW1S/V - pause execution */
+		uint32_t resume_accel: 1;    /* 04:04 RW1S/V - resume execution */
+		uint32_t __res_06_05: 2;     /* 05:06 RO     - reserved */
+		uint32_t mmu_bar_preload: 1; /* 07:07 RW     - MMU BARs are preloaded */
+		uint32_t comp_int_en: 1;     /* 08:08 RW     - completion interrupt enable */
+		uint32_t bp_pause_int_en: 1; /* 09:09 RW     - breakpoint pause interrupt enable */
+		uint32_t err_int_en: 1;      /* 10:10 RW     - error interrupt enable */
+		uint32_t npos_int_en: 1;     /* 11:11 RW     - Non-Posted Response
+					      *		       Interrupt Enable
+					      */
+		uint32_t comp_stats_en: 4;   /* 12:15 RW     - compute statistics enable */
+		uint32_t __res_20_16: 5;     /* 16:20 RO     - reserved */
+		uint32_t __res_28_21: 8;     /* 21:28 RW     - reserved, scratchpad */
+		uint32_t acpen: 1;           /* 29:29 RW     - Access Control Policy Enable */
+		uint32_t __res_30: 1;        /* 30:30 RO     - reserved */
+		uint32_t intr_disable: 1;    /* 31:31 RW     - interrupt disable */
+	} bits;
+#else
 	struct {
 		uint32_t start_accel: 1;     /* 00:00 RW1S/V - start accelerator */
 		uint32_t __res_1: 1;         /* 01:01 RW     - reserved, old active list enable */
@@ -84,6 +133,7 @@ typedef union _GNACTL_REG {
 		uint32_t auto_ext_en: 1;       /* 30:30 RW     - Autonomous Extension Enable */
 		uint32_t intr_disable: 1;      /* 31:31 RW     - interrupt disable */
 	} bits;
+#endif /* CONFIGFW_ADSP_GNA_VERSION >= CONFIGFW_ADSP_GNA_4_5_VERSION */
 } GNACTL_REG;
 BUILD_ASSERT(sizeof(GNACTL_REG) == 4, "Wrong size of GNACTL_REG");
 
@@ -92,6 +142,18 @@ BUILD_ASSERT(sizeof(GNACTL_REG) == 4, "Wrong size of GNACTL_REG");
  */
 typedef union _GNAMGM_REG {
 	uint32_t value;
+#if CONFIGFW_ADSP_GNA_VERSION >= CONFIGFW_ADSP_GNA_4_5_VERSION
+	struct {
+		uint32_t max_outs_rd_trans: 8; /* 00:07 RW - max outstanding read transactions,
+						*            0 = 64
+						*/
+		uint32_t __res_15_8: 8;        /* 08:15 RO - Reserved */
+		uint32_t max_outs_wr_trans: 8; /* 16:23 RW - max outstanding write transactions,
+						*            0 = 64
+						*/
+		uint32_t __res_31_24: 8;       /* 24:31 RO - reserved */
+	} bits;
+#else
 	struct {
 		uint32_t max_outs_trans: 8; /* 00:07 RW - max outstanding transaction control,
 					     *            0 = infinite
@@ -100,6 +162,7 @@ typedef union _GNAMGM_REG {
 		uint32_t rd_cmd_ovr: 1;     /* 09:09 RW - Enable Read Command Overlap (ERCO) */
 		uint32_t __res_31_10: 22;   /* 10:31 RO - reserved */
 	} bits;
+#endif /* CONFIGFW_ADSP_GNA_VERSION >= CONFIGFW_ADSP_GNA_4_5_VERSION */
 } GNAMGM_REG;
 BUILD_ASSERT(sizeof(GNAMGM_REG) == 4, "Wrong size of GNAMGM_REG");
 
@@ -152,6 +215,24 @@ BUILD_ASSERT(sizeof(GNABPH_REG) == 4, "Wrong size of GNABPH_REG");
 
 typedef union _GNAOVR_REG {
 	uint32_t value;
+#if CONFIGFW_ADSP_GNA_VERSION >= CONFIGFW_ADSP_GNA_4_5_VERSION
+	struct {
+		uint32_t gm_bb_host_dcgen: 1;    /* 00:00 RW - host interface
+						  *	       clock gating enable
+						  */
+		uint32_t gm_bb_ra_dcgen: 1;      /* 01:01 RW - register access
+						  *	       clock gating enable
+						  */
+		uint32_t gm_bb_dma_dcgen: 1;     /* 02:02 RW - dma engine clock gating enable */
+		uint32_t gm_bb_gnac_dcgen: 1;    /* 03:03 RW - GNA core clock gating enable */
+		uint32_t __res_15_04: 12;        /* 04:15 RO - reserved */
+		uint32_t __res_23_16: 8;         /* 16:23 RO - reserved */
+		uint32_t dmaarb: 2;              /* 24:25 RW - DMA Arbitration mode */
+		uint32_t diagcnndis: 1;          /* 26:26 RW - Diagonal CNN Disable */
+		uint32_t misen: 1;              /* 27:27 RW - Multi Iteration Sparsity Enable */
+		uint32_t __res_31_28: 4;         /* 28:31 RO - reserved */
+	} bits;
+#else
 	struct {
 		uint32_t __res_0: 1;             /* 00:00 RO - reserved */
 		uint32_t __res_1: 1;             /* 01:01 RO - reserved - old partition
@@ -172,6 +253,7 @@ typedef union _GNAOVR_REG {
 							 */
 		uint32_t __res_31_17: 15;               /* 17:31 RO - reserved */
 	} bits;
+#endif /* CONFIGFW_ADSP_GNA_VERSION >= CONFIGFW_ADSP_GNA_4_5_VERSION */
 } GNAOVR_REG;
 BUILD_ASSERT(sizeof(GNAOVR_REG) == 4, "Wrong size of GNAOVR_REG");
 
@@ -185,13 +267,48 @@ typedef union _GNABLD_REG {
 		uint32_t gna_ce_num: 4;      /* 08:11 RO   - GNA CE  numbers */
 		uint32_t gna_ple_num: 4;     /* 12:15 RO   - GNA PLE numbers */
 		uint32_t gna_afe_num: 4;     /* 16:19 RO   - GNA AFE numbers */
+#if CONFIGFW_ADSP_GNA_VERSION >= CONFIGFW_ADSP_GNA_4_5_VERSION
+		uint32_t gna_nmbufs: 2;      /* 20:21 RO   - GNA Narrow-Mem Buffer Size */
+#else
 		uint32_t __res_21_20: 2;     /* 20:21 RO   - reserved */
+#endif
 		uint32_t gna_ae_pres: 1;     /* 22:22 RO   - GNA Autonomous Extension present */
 		uint32_t gna_mmu_pres: 1;    /* 23:23 RO   - GNA MMU present */
 		uint32_t gna_ver_num: 8;     /* 24:31 RO   - GNA version number */
 	} bits;
 } GNABLD_REG;
 BUILD_ASSERT(sizeof(GNABLD_REG) == 4, "Wrong size of GNABLD_REG");
+
+#if CONFIGFW_ADSP_GNA_VERSION >= CONFIGFW_ADSP_GNA_4_5_VERSION
+/*!
+ * GNA Layer register - layer index for preemption.
+ */
+typedef union _GNALYR_REG {
+	uint32_t value;
+	struct {
+		uint32_t lyridx: 13;       /* 00:12 RO   - GNA Layer index */
+		uint32_t __res_15_13: 3;   /* 13:15 RO   - reserved */
+		uint32_t __res_31_16: 16;  /* 16:31 RO   - reserved */
+	} bits;
+} GNALYR_REG;
+BUILD_ASSERT(sizeof(GNALYR_REG) == 4, "Wrong size of GNALYR_REG");
+
+/*!
+ * GNA Memory Access Error register.
+ */
+typedef union _GNAMERR_REG {
+	uint32_t value;
+	struct {
+		uint32_t lyridx: 13;       /* 00:12 RO/V - GNA Layer index */
+		uint32_t __res_15_13: 3;   /* 13:15 RO   - reserved */
+		uint32_t mrn: 6;           /* 16:21 RO/V - Memory-Region Number */
+		uint32_t dchn: 6;          /* 22:27 RO/V - DMA Channel Number */
+		uint32_t phz: 1;           /* 28:28 RO/V - Phase: 0-static, 1-dynamic */
+		uint32_t __res_31_29: 3;   /* 29:31 RO   - reserved */
+	} bits;
+} GNAMERR_REG;
+BUILD_ASSERT(sizeof(GNAMERR_REG) == 4, "Wrong size of GNAMERR_REG");
+#endif /* CONFIGFW_ADSP_GNA_VERSION >= CONFIGFW_ADSP_GNA_4_5_VERSION */
 
 /*! --------------- ML SHIM registers ---------------*/
 typedef union _MLCAP {

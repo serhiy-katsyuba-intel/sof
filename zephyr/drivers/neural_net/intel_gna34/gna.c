@@ -83,11 +83,11 @@ ErrorCode gna_device_process_request(gna_device *self, gna_request_internal *req
 
 	GNA_DESC_MMU_DIS *current_gna_descriptor;
 
-#if CONFIG_INTEL_GNA34_6BAR
+#if CONFIG_INTEL_GNA34_6BAR || CONFIG_INTEL_GNA34_7BAR
 	current_gna_descriptor = &(self->run_gna_descriptor);
 #else
 	current_gna_descriptor = (GNA_DESC_MMU_DIS *)(request->run_ctx);
-#endif /* CONFIG_INTEL_GNA34_6BAR */
+#endif /* CONFIG_INTEL_GNA34_6BAR || CONFIG_INTEL_GNA34_7BAR */
 
 	/* copy CTX */
 	uint8_t *dst = (uint8_t *)current_gna_descriptor;
@@ -95,11 +95,16 @@ ErrorCode gna_device_process_request(gna_device *self, gna_request_internal *req
 
 	memcpy(dst, src, request->ctx_size);
 
-#if CONFIG_INTEL_GNA34_6BAR
-	current_gna_descriptor->bits.bar1 = (uint32_t)(request->input);
-	current_gna_descriptor->bits.bar2 = (uint32_t)(request->output);
-	current_gna_descriptor->bits.bar3 = (uint32_t)(request->run_ctx);
-	current_gna_descriptor->bits.bar4 = (uint32_t)(request->xnn_state);
+#if CONFIG_INTEL_GNA34_6BAR || CONFIG_INTEL_GNA34_7BAR
+	current_gna_descriptor->bits.bar1 = MBAR_VALUE_INPUT((uint32_t)(request->input));
+	current_gna_descriptor->bits.bar2 = MBAR_VALUE_OUTPUT((uint32_t)(request->output));
+	current_gna_descriptor->bits.bar3 = MBAR_VALUE_SCRATCH((uint32_t)(request->run_ctx));
+	current_gna_descriptor->bits.bar4 = MBAR_VALUE_STATE((uint32_t)(request->xnn_state));
+#if CONFIG_INTEL_GNA34_ACC_CTL
+	current_gna_descriptor->bits.mlmt1 = (uint32_t)(request->input_size);
+	current_gna_descriptor->bits.mlmt2 = (uint32_t)(request->output_size);
+	current_gna_descriptor->bits.mlmt4 = (uint32_t)(request->xnn_state_size);
+#endif /* CONFIG_INTEL_GNA34_ACC_CTL */
 #else  /* 4 BARs */
 	/* Setup BARs */
 
@@ -118,7 +123,7 @@ ErrorCode gna_device_process_request(gna_device *self, gna_request_internal *req
 		/* assign Output to BAR2 */
 		current_gna_descriptor->bits.bar2 = (uint32_t)(request->output);
 	}
-#endif /* CONFIG_INTEL_GNA34_6BAR */
+#endif /* CONFIG_INTEL_GNA34_6BAR || CONFIG_INTEL_GNA34_7BAR */
 
 #if CONFIG_MULTICORE && CONFIG_SMP
 	uint32_t current_core_mask;
@@ -149,9 +154,12 @@ ErrorCode gna_device_process_request(gna_device *self, gna_request_internal *req
 #if !defined(GNA_DRV_WA_POLLING) || (GNA_DRV_WA_POLLING == 0)
 	adsphal_gna_set_completion_int_on(gna_base_addr);
 	adsphal_gna_set_error_int_on(gna_base_addr);
+	adsphal_gna_set_non_posted_int_on(gna_base_addr);
 #endif
 
+#if CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION
 	adsphal_gna_set_gnamode(gna_base_addr, GNAMODE_XNN);
+#endif /* CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION */
 
 #if defined(GNA_DRV_WA_LOAD_BARS) && (GNA_DRV_WA_LOAD_BARS == 1)
 	/* Load BARs by FW */
@@ -159,14 +167,31 @@ ErrorCode gna_device_process_request(gna_device *self, gna_request_internal *req
 	adsphal_gna_set_mbar0(gna_base_addr, (current_gna_descriptor)->bits.bar0);
 	adsphal_gna_set_mbar1(gna_base_addr, (current_gna_descriptor)->bits.bar1);
 	adsphal_gna_set_mbar2(gna_base_addr, (current_gna_descriptor)->bits.bar2);
-#if CONFIG_INTEL_GNA34_6BAR
+#if CONFIG_INTEL_GNA34_6BAR || CONFIG_INTEL_GNA34_7BAR
 	adsphal_gna_set_mbar3(gna_base_addr, (current_gna_descriptor)->bits.bar3);
 	adsphal_gna_set_mbar4(gna_base_addr, (current_gna_descriptor)->bits.bar4);
-#endif /* CONFIG_INTEL_GNA34_6BAR */
+#endif /* CONFIG_INTEL_GNA34_6BAR || CONFIG_INTEL_GNA34_7BAR */
+#if CONFIG_INTEL_GNA34_7BAR
+	adsphal_gna_set_mbar5(gna_base_addr, (current_gna_descriptor)->bits.bar5);
+#if CONFIG_INTEL_GNA34_ACC_CTL
+	/* set memory limit registers */
+	adsphal_gna_set_mlmt0(gna_base_addr, current_gna_descriptor->bits.mlmt0);
+	adsphal_gna_set_mlmt1(gna_base_addr, current_gna_descriptor->bits.mlmt1);
+	adsphal_gna_set_mlmt2(gna_base_addr, current_gna_descriptor->bits.mlmt2);
+	adsphal_gna_set_mlmt3(gna_base_addr, current_gna_descriptor->bits.mlmt3);
+	adsphal_gna_set_mlmt4(gna_base_addr, current_gna_descriptor->bits.mlmt4);
+	adsphal_gna_set_mlmt5(gna_base_addr, current_gna_descriptor->bits.mlmt5);
+#endif /* CONFIG_INTEL_GNA34_ACC_CTL */
+#endif /* CONFIG_INTEL_GNA34_7BAR */
 #else
 	/* Use HW preload from GNA Descriptor */
 	adsphal_gna_bar_fw_preload_off(gna_base_addr);
 #endif
+
+#if CONFIG_INTEL_GNA34_ACC_CTL
+	/* Enable Memory Access Control */
+	adsphal_gna_set_acc_ctl_on(gna_base_addr);
+#endif /* CONFIG_INTEL_GNA34_ACC_CTL */
 
 	adsphal_gna_set_interrupts_on(gna_base_addr);
 
@@ -181,9 +206,11 @@ ErrorCode gna_device_process_request(gna_device *self, gna_request_internal *req
 	adsphal_gna_enable_compute_stats(gna_base_addr, GNACOMP_STAT_TOTAL_STALL_CYCLES);
 #endif
 
+#if CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION
 #if defined(GNA_DRV_WA_NMEMRFX) && (GNA_DRV_WA_NMEMRFX == 1)
 	adsphal_gna_set_nmemrfx(gna_base_addr);
 #endif
+#endif /* CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION */
 
 	/* start inference */
 	adsphal_gna_start_acceleration(gna_base_addr);
@@ -304,12 +331,14 @@ ErrorCode gna_device_power_on(gna_device *self)
 
 	adsphal_ml_set_power_on(gna_base_addr);
 
+#if CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION
 #if defined(GNA_DRV_WA_PMQID) && (GNA_DRV_WA_PMQID == 0)
 	adsphal_gna_set_quiteidle_on(gna_base_addr);
 #endif
 #if defined(GNA_DRV_WA_DIS_ERCO) && (GNA_DRV_WA_DIS_ERCO == 1)
 	adsphal_gna_clr_erco(gna_base_addr);
 #endif
+#endif /* CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION */
 #if defined(GNA_DRV_WA_DCG) && (GNA_DRV_WA_DCG == 1)
 	adsphal_gna_set_ovr_val(gna_base_addr, 0xffffffff);
 #endif
@@ -592,13 +621,24 @@ ErrorCode gna_setup_model(const struct device *dev, gna_model_id *model_id,
 	/* Setup GNA descriptor */
 	gna_desc = (GNA_DESC_MMU_DIS *)myModel->model_id.model_ctx_ptr;
 
+#if !CONFIG_INTEL_GNA34_7BAR
 	gna_desc->bits.maxaddr =
 		0xffffffC0; /* setup max address - in MMU_disablde mode
 			     * this protection is useless
 			     */
+#endif
+#if CONFIG_INTEL_GNA34_7BAR
+	gna_desc->bits.labase = 0x06;                 /* setup BAR5 (index 6) offset 0 */
+#else
 	gna_desc->bits.labase = 0x01;                 /* setup BAR0 offset 0 */
+#endif
 	gna_desc->bits.lacnt = model_ldt_num_entries; /* default - whole model execution */
+#if CONFIG_INTEL_GNA34_7BAR
+	gna_desc->bits.bar0 = MBAR_VALUE_RO((uint32_t)model);
+	gna_desc->bits.bar5 = MBAR_VALUE_LDT((uint32_t)model);
+#else
 	gna_desc->bits.bar0 = (uint32_t)model; /* point to model RO area, should start with LDT */
+#endif
 
 	GNA_DEVICE_UNLOCK;
 	return ADSP_SUCCESS;

@@ -36,6 +36,23 @@ config INTEL_GNA34_6BAR
 	help
 	  This sholud be (n) for MTL and (y) for LNL, PTL
 
+config INTEL_GNA34_7BAR
+	bool "Intel GNA HW supports 7 BAR registers (GNA 4.5+)"
+	default n
+	depends on INTEL_GNA34_6BAR
+	help
+	  This should be (y) for NVL and newer platforms with GNA 4.5+.
+	  Adds BAR5 for LDT and MLMT registers for memory protection.
+
+config INTEL_GNA34_ACC_CTL
+	bool "Intel GNA HW supports memory access control (GNA 4.5+)"
+	default n
+	depends on INTEL_GNA34_7BAR
+	help
+	  Enables GNA memory access control policy (GNA_ACC_CTL).
+	  Each MBAR gets Read/Write/Execute privilege bits and MLMT
+	  registers enforce memory region size limits.
+
 config INTEL_GNA34_SHARED
 	bool "Intel GNA34 driver can be used by multiple modules"
 	default n

@@ -148,6 +148,65 @@ static inline void adsphal_gna_set_mbar4(uint32_t base_addr, uint32_t value)
 }
 #endif /* CONFIG_INTEL_GNA34_6BAR */
 
+#if CONFIG_INTEL_GNA34_7BAR
+/*! Sets MBAR5. */
+static inline void adsphal_gna_set_mbar5(uint32_t base_addr, uint32_t value)
+{
+	*(REGISTER(GNA_GNABAR5)(base_addr)) = value;
+}
+#endif /* CONFIG_INTEL_GNA34_7BAR */
+
+#if CONFIG_INTEL_GNA34_ACC_CTL
+/*! Sets MLMT0. */
+static inline void adsphal_gna_set_mlmt0(uint32_t base_addr, uint32_t value)
+{
+	*(REGISTER(GNA_GNAMLMT0)(base_addr)) = value;
+}
+
+/*! Sets MLMT1. */
+static inline void adsphal_gna_set_mlmt1(uint32_t base_addr, uint32_t value)
+{
+	*(REGISTER(GNA_GNAMLMT1)(base_addr)) = value;
+}
+
+/*! Sets MLMT2. */
+static inline void adsphal_gna_set_mlmt2(uint32_t base_addr, uint32_t value)
+{
+	*(REGISTER(GNA_GNAMLMT2)(base_addr)) = value;
+}
+
+/*! Sets MLMT3. */
+static inline void adsphal_gna_set_mlmt3(uint32_t base_addr, uint32_t value)
+{
+	*(REGISTER(GNA_GNAMLMT3)(base_addr)) = value;
+}
+
+/*! Sets MLMT4. */
+static inline void adsphal_gna_set_mlmt4(uint32_t base_addr, uint32_t value)
+{
+	*(REGISTER(GNA_GNAMLMT4)(base_addr)) = value;
+}
+
+/*! Sets MLMT5. */
+static inline void adsphal_gna_set_mlmt5(uint32_t base_addr, uint32_t value)
+{
+	*(REGISTER(GNA_GNAMLMT5)(base_addr)) = value;
+}
+
+/*! Turns ON Memory Access Control. */
+static inline void adsphal_gna_set_acc_ctl_on(uint32_t base_addr)
+{
+	(REGISTER(GNA_GNACTL)(base_addr))->bits.acpen = 1;
+}
+
+/*! Turns OFF Memory Access Control. */
+static inline void adsphal_gna_set_acc_ctl_off(uint32_t base_addr)
+{
+	(REGISTER(GNA_GNACTL)(base_addr))->bits.acpen = 0;
+}
+#endif /* CONFIG_INTEL_GNA34_ACC_CTL */
+
+#if CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION
 /*! Turns ON GNA QuiteIdle feature */
 static inline void adsphal_gna_set_quiteidle_on(uint32_t base_addr)
 {
@@ -159,6 +218,7 @@ static inline void adsphal_gna_set_quiteidle_off(uint32_t base_addr)
 {
 	(REGISTER(GNA_GNACTL)(base_addr))->bits.pm_quite_idle_dis = 1;
 }
+#endif /* CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION */
 
 /*! Turns ON global gna interrupts. This permits for interrupts. */
 static inline void adsphal_gna_set_interrupts_on(uint32_t base_addr)
@@ -204,12 +264,26 @@ static inline void adsphal_gna_set_error_int_off(uint32_t base_addr)
 	(REGISTER(GNA_GNACTL)(base_addr))->bits.err_int_en = 0;
 }
 
-/*! Sets GNA mode. */
+/*! Turns ON interrupt for non-posted response error (OCP/AXI bus errors). */
+static inline void adsphal_gna_set_non_posted_int_on(uint32_t base_addr)
+{
+	(REGISTER(GNA_GNACTL)(base_addr))->bits.npos_int_en = 1;
+}
+
+/*! Turns OFF interrupt for non-posted response error. */
+static inline void adsphal_gna_set_non_posted_int_off(uint32_t base_addr)
+{
+	(REGISTER(GNA_GNACTL)(base_addr))->bits.npos_int_en = 0;
+}
+
+#if CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION
+/*! Sets GNA mode. Mode register removed on 4.5 - fixed to XNN. */
 static inline void adsphal_gna_set_gnamode(uint32_t base_addr, gnamode_t mode)
 {
 	(REGISTER(GNA_GNACTL)(base_addr))->bits.gna_mode =
 		GNAMODE_XNN; /* only XNN is supported on 3.x */
 }
+#endif /* CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION */
 
 /*! Starts GNA accelerator. */
 static inline void adsphal_gna_start_acceleration(uint32_t base_addr)
@@ -265,6 +339,7 @@ static inline uint32_t adsphal_gna_get_exec_active(uint32_t base_addr)
 	return (REGISTER(GNA_GNACTL)(base_addr))->bits.start_accel;
 }
 
+#if CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION
 /*!< Set Power Management Force Power On */
 static inline void adsphal_gna_set_pm_force_power_on(uint32_t base_addr)
 {
@@ -306,6 +381,7 @@ static inline bool adsphal_gna_get_aeip(uint32_t base_addr)
 {
 	return (REGISTER(GNA_GNASTS)(base_addr))->bits.aeip;
 }
+#endif /* CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION */
 
 /*! Gets GNA status register value. */
 static inline uint32_t adsphal_gna_get_gna_status(uint32_t base_addr)
@@ -324,6 +400,15 @@ static inline ErrorCode adsphal_gna_check_status(const uint32_t *stsreg_dump)
 	ErrorCode ec;
 	GNASTS_REG *sts = (GNASTS_REG *)stsreg_dump;
 
+#if CONFIGFW_ADSP_GNA_VERSION >= CONFIGFW_ADSP_GNA_4_5_VERSION
+	if (1 == sts->bits.hw_par_oor_err || 1 == sts->bits.acpe ||
+	    1 == sts->bits.drdierr || 1 == sts->bits.drdterr ||
+	    1 == sts->bits.dwrierr || 1 == sts->bits.dwrterr) {
+		ec = ADSP_GNA_ERROR;
+	} else {
+		ec = ADSP_SUCCESS;
+	}
+#else
 	if (1 == sts->bits.ocp_mmu_err || 1 == sts->bits.ocp_dma_err ||
 	    1 == sts->bits.ocp_ucomp_err || 1 == sts->bits.va_oor_err ||
 	    1 == sts->bits.hw_par_oor_err || 1 == sts->bits.recv_err_response) {
@@ -331,6 +416,7 @@ static inline ErrorCode adsphal_gna_check_status(const uint32_t *stsreg_dump)
 	} else {
 		ec = ADSP_SUCCESS;
 	}
+#endif /* CONFIGFW_ADSP_GNA_VERSION >= CONFIGFW_ADSP_GNA_4_5_VERSION */
 
 	return ec;
 }
@@ -355,7 +441,14 @@ static inline uint32_t adsphal_gna_get_perf_stall_cycles(uint32_t base_addr)
 
 static inline void adsphal_gna_clear_device(uint32_t base_addr)
 {
+#if CONFIGFW_ADSP_GNA_VERSION >= CONFIGFW_ADSP_GNA_4_5_VERSION
+	(REGISTER(GNA_GNASTS)(base_addr))->bits.drdierr = 0;
+	(REGISTER(GNA_GNASTS)(base_addr))->bits.drdterr = 0;
+	(REGISTER(GNA_GNASTS)(base_addr))->bits.dwrierr = 0;
+	(REGISTER(GNA_GNASTS)(base_addr))->bits.dwrterr = 0;
+#else
 	(REGISTER(GNA_GNASTS)(base_addr))->bits.recv_err_response = 0;
+#endif
 	(REGISTER(GNA_GNASTS)(base_addr))->bits.score_saturated = 0;
 	(REGISTER(GNA_GNASTS)(base_addr))->bits.hw_out_full = 0;
 
@@ -374,6 +467,7 @@ static inline bool adsphal_gna_get_interrupt_status(uint32_t base_addr)
 	return (REGISTER(GNA_GNASTS)(base_addr))->bits.intr_status;
 }
 
+#if CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION
 /*! Gets max outstanding transactions */
 static inline uint32_t
 adsphal_gna_get_max_outs_trans(uint32_t base_addr)
@@ -418,6 +512,7 @@ static inline uint8_t adsphal_gna_get_maxouts(uint32_t base_addr)
 {
 	return (uint8_t)((REGISTER(GNA_GNAMGM)(base_addr))->bits.max_outs_trans);
 }
+#endif /* CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION */
 
 /*! Gets max outstanding transactions */
 static inline uint32_t
@@ -432,6 +527,7 @@ static inline void adsphal_gna_set_ovr_val(uint32_t base_addr, uint32_t val)
 	(REGISTER(GNA_GNAOVR)(base_addr))->value = val;
 }
 
+#if CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION
 /*! Turns ON chicken bit no. 1. */
 static inline void adsphal_gna_set_chicken_no1(uint32_t base_addr)
 {
@@ -471,6 +567,7 @@ static inline void adsphal_gna_clear_nmemrfx(uint32_t base_addr)
 }
 
 #define adsphal_gna_clear_chicken_no2 adsphal_gna_clear_nmemrfx
+#endif /* CONFIGFW_ADSP_GNA_VERSION < CONFIGFW_ADSP_GNA_4_5_VERSION */
 
 /* HAL for accessing SHIM registers
  *!< Sets gna ownership.

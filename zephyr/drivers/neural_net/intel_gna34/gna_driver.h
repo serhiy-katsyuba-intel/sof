@@ -72,11 +72,11 @@ DCACHE_ALIGN
 	struct device *gen_dev; /* generic device pointer */
 #endif
 
-#if CONFIG_INTEL_GNA34_6BAR
+#if CONFIG_INTEL_GNA34_6BAR || CONFIG_INTEL_GNA34_7BAR
 /* Space for GNA descriptor */
 DCACHE_ALIGN
 	GNA_DESC_MMU_DIS	run_gna_descriptor;
-#endif /* CONFIG_INTEL_GNA34_6BAR */
+#endif /* CONFIG_INTEL_GNA34_6BAR || CONFIG_INTEL_GNA34_7BAR */
 
 #if CONFIG_INTEL_GNA34_SHARED
 DCACHE_ALIGN

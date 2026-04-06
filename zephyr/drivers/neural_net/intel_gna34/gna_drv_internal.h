@@ -37,7 +37,7 @@
 #define FREE_SLAB_U16 0xFFFF
 #define FREE_SLAB_U8  0xFF
 
-#define GNA_DESC_SIZE 32
+#define GNA_DESC_SIZE SIZE_OF_GNA_DESC_MMU_DIS
 
 typedef enum _gna_db_entry_state {
 	GNA_DB_ENTRY_EMPTY = 0,

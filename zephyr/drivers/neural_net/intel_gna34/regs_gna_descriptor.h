@@ -26,7 +26,44 @@
 /*
  * Size (in bytes) of GNA descriptor in MMU disabled mode.
  */
+#if CONFIG_INTEL_GNA34_7BAR
+#define SIZE_OF_GNA_DESC_MMU_DIS 64
+#else
 #define SIZE_OF_GNA_DESC_MMU_DIS 32
+#endif /* CONFIG_INTEL_GNA34_7BAR */
+
+/* MBAR access control privilege bits (GNA 4.5+ ACC_CTL) */
+#define MBAR_READ_PRIVILEGES             1
+#define MBAR_WRITE_PRIVILEGES            2
+#define MBAR_READ_WRITE_PRIVILEGES       (MBAR_READ_PRIVILEGES | MBAR_WRITE_PRIVILEGES)
+#define MBAR_EXECUTE_PRIVILEGES          4
+
+#define MBAR_LDT_AREA_ACC_CTL            (MBAR_READ_PRIVILEGES | MBAR_EXECUTE_PRIVILEGES)
+#define MBAR_RO_AREA_ACC_CTL             MBAR_READ_PRIVILEGES
+#define MBAR_SCRATCH_ACC_CTL             MBAR_READ_WRITE_PRIVILEGES
+#define MBAR_STATE_ACC_CTL               MBAR_READ_WRITE_PRIVILEGES
+#define MBAR_INPUT_ACC_CTL               MBAR_READ_WRITE_PRIVILEGES
+#define MBAR_OUTPUT_ACC_CTL              MBAR_READ_WRITE_PRIVILEGES
+
+/* MBAR address must be 64B aligned */
+#define MBAR_ADDR_MASK                   0xFFFFFFC0
+#define MBAR_ACC_CTL_MASK                0x00000007
+
+#if CONFIG_INTEL_GNA34_ACC_CTL
+#define MBAR_VALUE_LDT(x)               (((x) & MBAR_ADDR_MASK) | MBAR_LDT_AREA_ACC_CTL)
+#define MBAR_VALUE_RO(x)                (((x) & MBAR_ADDR_MASK) | MBAR_RO_AREA_ACC_CTL)
+#define MBAR_VALUE_SCRATCH(x)           (((x) & MBAR_ADDR_MASK) | MBAR_SCRATCH_ACC_CTL)
+#define MBAR_VALUE_STATE(x)             (((x) & MBAR_ADDR_MASK) | MBAR_STATE_ACC_CTL)
+#define MBAR_VALUE_INPUT(x)             (((x) & MBAR_ADDR_MASK) | MBAR_INPUT_ACC_CTL)
+#define MBAR_VALUE_OUTPUT(x)            (((x) & MBAR_ADDR_MASK) | MBAR_OUTPUT_ACC_CTL)
+#else
+#define MBAR_VALUE_LDT(x)               ((x) & MBAR_ADDR_MASK)
+#define MBAR_VALUE_RO(x)                ((x) & MBAR_ADDR_MASK)
+#define MBAR_VALUE_SCRATCH(x)           ((x) & MBAR_ADDR_MASK)
+#define MBAR_VALUE_STATE(x)             ((x) & MBAR_ADDR_MASK)
+#define MBAR_VALUE_INPUT(x)             ((x) & MBAR_ADDR_MASK)
+#define MBAR_VALUE_OUTPUT(x)            ((x) & MBAR_ADDR_MASK)
+#endif /* CONFIG_INTEL_GNA34_ACC_CTL */
 
 /*! GNA HW descriptor used in MMU disabled mode.
  *  MMU is disabled on embedded GNA.
@@ -37,16 +74,28 @@ typedef union _GNA_DESCRIPTOR_MMU_DISABLED {
 		uint32_t    labase;       /* 0000 - 0003 - Offset of Layer Descriptor */
 		uint16_t    lacnt;        /* 0004 - 0005 - Number of layers */
 		uint8_t     __res_6_7[2]; /* 0006 - 0007 (2B reserved) */
-		uint32_t    maxaddr;      /* 0008 - 000B - Max address - hard to use without MMU */
-		uint32_t    bar0;         /* 000C - 000f - BAR 0 */
-		uint32_t    bar1;         /* 0010 - 0013 - BAR 1 */
-		uint32_t    bar2;         /* 0014 - 0017 - BAR 2 */
-#if CONFIG_INTEL_GNA34_6BAR
-		uint32_t    bar3;         /* 0018 - 001B - BAR 3 */
-		uint32_t    bar4;         /* 001C - 001F - BAR 4 */
+#if !CONFIG_INTEL_GNA34_7BAR
+		uint32_t    maxaddr;      /* 0008 - 000B - Max address */
+#endif
+		uint32_t    bar0;         /* BAR 0 */
+		uint32_t    bar1;         /* BAR 1 */
+		uint32_t    bar2;         /* BAR 2 */
+#if CONFIG_INTEL_GNA34_6BAR || CONFIG_INTEL_GNA34_7BAR
+		uint32_t    bar3;         /* BAR 3 */
+		uint32_t    bar4;         /* BAR 4 */
 #else /* 4 BARs */
-		uint8_t     __res_1f_18[8]; /* 0018 - 001F (8B reserved) */
-#endif  /* CONFIG_INTEL_GNA34_6BAR */
+		uint8_t     __res_1f_18[8]; /* (8B reserved) */
+#endif  /* CONFIG_INTEL_GNA34_6BAR || CONFIG_INTEL_GNA34_7BAR */
+#if CONFIG_INTEL_GNA34_7BAR
+		uint32_t    bar5;         /* BAR 5 - LDT */
+		uint32_t    mlmt0;        /* Memory limit for MBAR0 */
+		uint32_t    mlmt1;        /* Memory limit for MBAR1 */
+		uint32_t    mlmt2;        /* Memory limit for MBAR2 */
+		uint32_t    mlmt3;        /* Memory limit for MBAR3 */
+		uint32_t    mlmt4;        /* Memory limit for MBAR4 */
+		uint32_t    mlmt5;        /* Memory limit for MBAR5 */
+		uint32_t    __res_3c_3f[2]; /* reserved */
+#endif /* CONFIG_INTEL_GNA34_7BAR */
 	} bits;
 } GNA_DESC_MMU_DIS;                           /* GNA Base Descriptor */
 BUILD_ASSERT(sizeof(GNA_DESC_MMU_DIS) == SIZE_OF_GNA_DESC_MMU_DIS,

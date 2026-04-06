@@ -38,6 +38,11 @@ struct gna_model_ctx {
 	uint32_t user_data_size;      /**< Size of the user data in bytes */
 	uint32_t ldt_number;	      /**< LDT number */
 
+#if CONFIG_INTEL_GNA34_7BAR
+	uint8_t *ldt;		      /**< Pointer to the LDT buffer (7BAR) */
+	uint32_t ldt_size;	      /**< Size of the LDT buffer in bytes */
+#endif
+
 	float input_scale_factor;  /**< Input scale factor */
 	float output_scale_factor; /**< Output scale factor */
 

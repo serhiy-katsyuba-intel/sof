@@ -116,6 +116,15 @@
 #define CONFIGFW_ADSP_GNA_GNABAR2_ADDRESS(addr)      (addr + 0x004C)
 #define CONFIGFW_ADSP_GNA_GNABAR3_ADDRESS(addr)      (addr + 0x0050)
 #define CONFIGFW_ADSP_GNA_GNABAR4_ADDRESS(addr)      (addr + 0x0054)
+#define CONFIGFW_ADSP_GNA_GNABAR5_ADDRESS(addr)      (addr + 0x0058)
+#define CONFIGFW_ADSP_GNA_GNAMLMT0_ADDRESS(addr)     (addr + 0x005C)
+#define CONFIGFW_ADSP_GNA_GNAMLMT1_ADDRESS(addr)     (addr + 0x0060)
+#define CONFIGFW_ADSP_GNA_GNAMLMT2_ADDRESS(addr)     (addr + 0x0064)
+#define CONFIGFW_ADSP_GNA_GNAMLMT3_ADDRESS(addr)     (addr + 0x0068)
+#define CONFIGFW_ADSP_GNA_GNAMLMT4_ADDRESS(addr)     (addr + 0x006C)
+#define CONFIGFW_ADSP_GNA_GNAMLMT5_ADDRESS(addr)     (addr + 0x0070)
+#define CONFIGFW_ADSP_GNA_GNAMERR_ADDRESS(addr)      (addr + 0x0074)
+#define CONFIGFW_ADSP_GNA_GNALYR_ADDRESS(addr)       (addr + 0x0028)
 
 #define CONFIGFW_ADSP_GNA_GNASTS_REGISTER(addr) \
 	((volatile GNASTS_REG *)(CONFIGFW_ADSP_GNA_GNASTS_ADDRESS(addr)))
@@ -153,6 +162,24 @@
 	((volatile uint32_t *)(CONFIGFW_ADSP_GNA_GNABAR3_ADDRESS(addr)))
 #define CONFIGFW_ADSP_GNA_GNABAR4_REGISTER(addr) \
 	((volatile uint32_t *)(CONFIGFW_ADSP_GNA_GNABAR4_ADDRESS(addr)))
+#define CONFIGFW_ADSP_GNA_GNABAR5_REGISTER(addr) \
+	((volatile uint32_t *)(CONFIGFW_ADSP_GNA_GNABAR5_ADDRESS(addr)))
+#define CONFIGFW_ADSP_GNA_GNAMLMT0_REGISTER(addr) \
+	((volatile uint32_t *)(CONFIGFW_ADSP_GNA_GNAMLMT0_ADDRESS(addr)))
+#define CONFIGFW_ADSP_GNA_GNAMLMT1_REGISTER(addr) \
+	((volatile uint32_t *)(CONFIGFW_ADSP_GNA_GNAMLMT1_ADDRESS(addr)))
+#define CONFIGFW_ADSP_GNA_GNAMLMT2_REGISTER(addr) \
+	((volatile uint32_t *)(CONFIGFW_ADSP_GNA_GNAMLMT2_ADDRESS(addr)))
+#define CONFIGFW_ADSP_GNA_GNAMLMT3_REGISTER(addr) \
+	((volatile uint32_t *)(CONFIGFW_ADSP_GNA_GNAMLMT3_ADDRESS(addr)))
+#define CONFIGFW_ADSP_GNA_GNAMLMT4_REGISTER(addr) \
+	((volatile uint32_t *)(CONFIGFW_ADSP_GNA_GNAMLMT4_ADDRESS(addr)))
+#define CONFIGFW_ADSP_GNA_GNAMLMT5_REGISTER(addr) \
+	((volatile uint32_t *)(CONFIGFW_ADSP_GNA_GNAMLMT5_ADDRESS(addr)))
+#define CONFIGFW_ADSP_GNA_GNAMERR_REGISTER(addr) \
+	((volatile GNAMERR_REG *)(CONFIGFW_ADSP_GNA_GNAMERR_ADDRESS(addr)))
+#define CONFIGFW_ADSP_GNA_GNALYR_REGISTER(addr) \
+	((volatile GNALYR_REG *)(CONFIGFW_ADSP_GNA_GNALYR_ADDRESS(addr)))
 
 /*
  * ML SHIM registers, for general operation control (reset, power & clock gating, etc.).
