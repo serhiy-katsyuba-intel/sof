@@ -159,16 +159,18 @@ int32_t gna_model_parse_tlv(struct gna_instance_data *gna)
 	/* Retrieve GNA initial state buffer address */
 	status = Gna2TlvFindInArray(model_ctx->model_data, model_ctx->model_size,
 				    Gna2TlvTypeStateData, &val_size, (void **)&value);
-	if (status) {
-		tr_err(&intel_gna_tr,
-		       "GNA model tlv: innitial state buffer error! len %d val %x",
-		       val_size, *value);
-		return status;
-	}
-
-	if (val_size > 0) {
-		model_ctx->initial_state_buffer = (uint8_t *)value;
-		model_ctx->state_buffer_size = val_size;
+	if (status == Gna2TlvStatusSuccess) {
+		if (val_size > 0) {
+			model_ctx->initial_state_buffer = (uint8_t *)value;
+			model_ctx->state_buffer_size = val_size;
+		}
+	} else {
+		/* Model without inline state data, only state size */
+		status = Gna2TlvFindInArray(model_ctx->model_data, model_ctx->model_size,
+					    Gna2TlvTypeStateSize, &val_size,
+					    (void **)&value);
+		if (status == Gna2TlvStatusSuccess && val_size == sizeof(uint32_t))
+			model_ctx->state_buffer_size = *value;
 	}
 
 	tr_info(&intel_gna_tr, "GNA model tlv: state_buffer addr=0x%x, size=%d",

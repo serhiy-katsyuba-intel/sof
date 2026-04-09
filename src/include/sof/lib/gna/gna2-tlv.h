@@ -182,8 +182,14 @@ typedef uint32_t Gna2TlvType;
  */
 #define Gna2TlvTypeReadOnlyData GNA2_TLV_IMPL_CHAR_TO_TYPE("RDOD")
 
-/*
- * TLV record of this type contains floating point Input Scaling Factor from
+/* * TLV record of this type contains the state buffer size.
+ *
+ * Used when the model does not include inline initial state data (STTD),
+ * but only specifies the required state buffer size.
+ */
+#define Gna2TlvTypeStateSize GNA2_TLV_IMPL_CHAR_TO_TYPE("STTS")
+
+/* * TLV record of this type contains floating point Input Scaling Factor from
  * OpenVino.
  */
 #define Gna2TlvTypeOVInputScaleFactor GNA2_TLV_IMPL_CHAR_TO_TYPE("OVIS")
