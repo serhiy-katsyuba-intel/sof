@@ -145,7 +145,9 @@ GNA2_TLV_LINKAGE Gna2TlvStatus Gna2TlvVerifyVersionAndCohesion(const char *tlvAr
 	if (status != Gna2TlvStatusSuccess) {
 		return status == Gna2TlvStatusNotFound ? Gna2TlvStatusVersionNotFound : status;
 	}
-	if (length != GNA2_TLV_VERSION_VALUE_LENGTH || (*(uint32_t *)version) != GNA2_TLV_VERSION) {
+	if (length != GNA2_TLV_VERSION_VALUE_LENGTH ||
+	    ((*(uint32_t *)version) != GNA2_TLV_VERSION &&
+	     (*(uint32_t *)version) != GNA2_TLV_VERSION_2)) {
 		return Gna2TlvStatusVersionNotSupported;
 	}
 	tlvArrayBegin += GNA2_TLV_VERSION_RECORD_SIZE;

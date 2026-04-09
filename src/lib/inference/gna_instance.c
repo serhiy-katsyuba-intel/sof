@@ -97,6 +97,50 @@ int32_t gna_model_parse_tlv(struct gna_instance_data *gna)
 	}
 
 	/* Retrieve GNA ro buffer address*/
+#if CONFIG_INTEL_GNA34_7BAR
+	/* For 7BAR: try separate LDT and RO TLV records first (native 7BAR model),
+	 * then check combined L&RD record (backward compatible old model).
+	 */
+	status = Gna2TlvFindInArray(model_ctx->model_data, model_ctx->model_size,
+				    Gna2TlvTypeLayerDescriptorArrayData, &val_size,
+				    (void **)&value);
+	if (status == Gna2TlvStatusSuccess && val_size > 0) {
+		model_ctx->ldt = (uint8_t *)value;
+		model_ctx->ldt_size = val_size;
+
+		status = Gna2TlvFindInArray(model_ctx->model_data, model_ctx->model_size,
+					    Gna2TlvTypeReadOnlyData, &val_size,
+					    (void **)&value);
+		if (status) {
+			tr_err(&intel_gna_tr, "GNA model tlv: ro buffer error! len %d",
+			       val_size);
+			return status;
+		}
+
+		/* Always set RO pointer - for 7BAR, BAR0 needs a valid address
+		 * even if RO size is 0 (pointer into TLV blob is valid).
+		 */
+		model_ctx->ro = (uint8_t *)value;
+		model_ctx->ro_size = val_size;
+	} else {
+		/* Old model with combined LDT+RO record */
+		status = Gna2TlvFindInArray(model_ctx->model_data, model_ctx->model_size,
+					    Gna2TlvTypeLayerDescriptorAndRoArrayData,
+					    &val_size, (void **)&value);
+		if (status) {
+			tr_err(&intel_gna_tr,
+			       "GNA model tlv: ro buffer error! len %d",
+			       val_size);
+			return status;
+		}
+
+		if (val_size > 0) {
+			model_ctx->ro = (uint8_t *)value;
+			model_ctx->ro_size = val_size;
+		}
+	}
+#else
+	/* For pre-7BAR: LDT and RO data are combined in a single TLV record */
 	status = Gna2TlvFindInArray(model_ctx->model_data, model_ctx->model_size,
 				    Gna2TlvTypeLayerDescriptorAndRoArrayData, &val_size,
 				    (void **)&value);
@@ -110,6 +154,7 @@ int32_t gna_model_parse_tlv(struct gna_instance_data *gna)
 		model_ctx->ro = (uint8_t *)value;
 		model_ctx->ro_size = val_size;
 	}
+#endif
 
 	/* Retrieve GNA initial state buffer address */
 	status = Gna2TlvFindInArray(model_ctx->model_data, model_ctx->model_size,
@@ -296,6 +341,11 @@ int gna_add_model(struct gna_instance_data *gna)
 			return ret;
 		}
 
+#if CONFIG_INTEL_GNA34_7BAR
+		gna->refs[free_model_id].model_id->model_ldt_ptr = model_ctx->ldt;
+		gna->refs[free_model_id].model_id->model_ldt_size = model_ctx->ldt_size;
+		gna->refs[free_model_id].model_id->model_scratch_size = model_ctx->scratch_buffer_size;
+#endif
 		ret = intel_gna34_setup_model(gna->dev, gna->refs[free_model_id].model_id,
 					      model_ctx->ldt_number, model_ctx->ro_size,
 					      gna_model_get_ro(model_ctx));

@@ -169,6 +169,20 @@ typedef uint32_t Gna2TlvType;
 #define Gna2TlvTypeGnaHwVersion GNA2_TLV_IMPL_CHAR_TO_TYPE("GHWV")
 
 /*
+ * TLV record of this type contains the Layer Descriptor Array data.
+ *
+ * For GNA 4.5 (7BAR) devices, the LDA is stored separately from RO data.
+ */
+#define Gna2TlvTypeLayerDescriptorArrayData GNA2_TLV_IMPL_CHAR_TO_TYPE("LDAD")
+
+/*
+ * TLV record of this type contains the Read-Only data.
+ *
+ * For GNA 4.5 (7BAR) devices, the RO data is stored separately from LDA.
+ */
+#define Gna2TlvTypeReadOnlyData GNA2_TLV_IMPL_CHAR_TO_TYPE("RDOD")
+
+/*
  * TLV record of this type contains floating point Input Scaling Factor from
  * OpenVino.
  */
@@ -264,6 +278,7 @@ typedef void *Gna2TlvAllocator(uint32_t);
 #define GNA2_TLV_LENGTH_SIZE sizeof(Gna2TlvLength)
 #define GNA2_TLV_EMPTY_RECORD_SIZE (GNA2_TLV_LENGTH_SIZE + sizeof(Gna2TlvType))
 #define GNA2_TLV_VERSION 1
+#define GNA2_TLV_VERSION_2 2
 #define GNA2_TLV_VERSION_VALUE_LENGTH sizeof(uint32_t)
 #define GNA2_TLV_VERSION_RECORD_SIZE (GNA2_TLV_EMPTY_RECORD_SIZE + GNA2_TLV_VERSION_VALUE_LENGTH)
 #define GNA2_TLV_MAX_GNA_VERSION_CSTRING_SIZE 1024
