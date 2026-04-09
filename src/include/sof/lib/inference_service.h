@@ -8,6 +8,7 @@
 #ifndef __SOF_LIB_INFERENCE_SERVICE_H__
 #define __SOF_LIB_INFERENCE_SERVICE_H__
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <sof/lib/gna/gna_instance.h>
 
@@ -63,6 +64,93 @@ struct inference_buffer {
 	uint8_t *const data;
 	/*!<size indicator about the data in the buffer */
 	size_t size;
+};
+
+/*! @brief Opaque handle representing an HPP client */
+struct hpp_client_handle {
+	void *handle;
+};
+
+/*! @brief Enumeration of request parameter types for get/set */
+enum inference_request_param_type {
+	/*!< Get CPC for given LDT subset; out: uint32_t, in: ldt_params */
+	INFERENCE_PARAM_MODEL_ICPC_PER_LAYER_SUBSET = 0,
+	/*!< Set LDT layer start and count; in: ldt_params */
+	INFERENCE_PARAM_REQUEST_LAYER_SUBSET,
+	/*!< Set max CPC value in request; in: uint32_t */
+	INFERENCE_PARAM_REQUEST_WORST_CASE_ICPC,
+	/*!< Indicates last request in request queue; in: bool */
+	INFERENCE_PARAM_REQUEST_LAST_IN_AUDIO_FRAME,
+	/*!< Get/set priority value (LOW=0, NORMAL=1, HIGH=2); uint32_t */
+	INFERENCE_PARAM_REQUEST_PRIORITY,
+};
+
+/*! @brief LDT layer subset parameters */
+struct inference_ldt_params {
+	/*!< Layer from which inference should start */
+	uint32_t start;
+	/*!< Number of layers to perform inference on */
+	uint32_t count;
+};
+
+/*! @brief Source of model data for extended model init */
+enum inference_model_source {
+	/*!< Model provided as raw pointer */
+	INFERENCE_MODEL_RAW_POINTER = 1,
+	/*!< Model loaded from FTLM module by GUID */
+	INFERENCE_MODEL_FTLM_MODULE = 2,
+};
+
+/*! @brief Extended model initialization parameters */
+struct inference_model_cfg {
+	/*!< Size of this structure in bytes */
+	size_t cb;
+	/*!< Source of model data */
+	enum inference_model_source model_source;
+	/*!< Pointer to model data (when source is RAW_POINTER) */
+	struct inference_model *model;
+	/*!< GUID of FTLM module (when source is FTLM_MODULE) */
+	uint32_t ftlm_module_guid[4];
+	/*!< GNA instance data */
+	struct gna_instance_data *gna;
+	/*!< Model context size */
+	uint32_t model_ctx_size;
+	/*!< Private scratch buffer (NULL for common scratch) */
+	uint8_t *private_scratch;
+	/*!< Private scratch buffer size (0 for auto) */
+	size_t private_scratch_size;
+};
+
+/*! @brief Chained buffer descriptor for pipelined inference */
+struct inference_chained_buffer {
+	/*!< Input buffer */
+	struct inference_buffer input;
+	/*!< Output buffer */
+	struct inference_buffer output;
+	/*!< Pointer to next chained buffer or NULL */
+	struct inference_chained_buffer *next;
+};
+
+/*! @brief Extended request initialization parameters */
+struct inference_request_cfg {
+	/*!< Size of this structure in bytes */
+	size_t cb;
+	/*!< GNA instance data */
+	struct gna_instance_data *gna;
+	/*!< Request context size */
+	uint32_t request_ctx_size;
+	/*!< Optional chained buffer descriptor (NULL if not used) */
+	struct inference_chained_buffer *chain;
+};
+
+/*! @brief Extended HPP client registration parameters */
+struct inference_hpp_client_cfg {
+	/*!< Size of this structure in bytes */
+	size_t cb;
+	/*!< Output: HPP client handle */
+	struct hpp_client_handle *client_id;
+	/*!< Total instruction CPC budget for all requests */
+	uint32_t total_icpc;
 };
 
 /**
@@ -185,5 +273,145 @@ int inference_request_release(struct gna_instance_data *gna);
  * @returns 0 on success, an error code otherwise
  */
 int inference_model_release(struct gna_instance_data *gna);
+
+/* ----------- V1 accessors ----------- */
+
+/*! @brief Retrieves read-only data from neural network model.
+ *
+ * @param model_ctx Pointer to the model context.
+ * @param ro_data Output pointer to the read-only data.
+ * @param ro_size Output size of the read-only data in bytes.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_model_get_ro_data(struct gna_model_ctx *model_ctx,
+				const uint8_t **ro_data, size_t *ro_size);
+
+/*! @brief Retrieves the number of layer descriptors in the model.
+ *
+ * @param model_ctx Pointer to the model context.
+ * @returns Number of layer descriptors.
+ */
+uint32_t inference_model_get_ldt_number(struct gna_model_ctx *model_ctx);
+
+/*! @brief Retrieves user metadata from the model.
+ *
+ * @param model_ctx Pointer to the model context.
+ * @param metadata Output pointer to metadata.
+ * @param metadata_size Output size of metadata in bytes.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_model_get_user_metadata(struct gna_model_ctx *model_ctx,
+				      uint8_t **metadata, size_t *metadata_size);
+
+/* ----------- V2 layer range ----------- */
+
+/*! @brief Updates the range of layers to execute during inference.
+ *
+ * @param gna The GNA instance data.
+ * @param ldt_layer_start First layer index to execute.
+ * @param layer_count Number of layers to execute.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_update_layers_range(struct gna_instance_data *gna,
+				  uint32_t ldt_layer_start, uint32_t layer_count);
+
+/* ----------- V3 HPP and parameters ----------- */
+
+/*! @brief Gets a parameter from the request context.
+ *
+ * @param gna The GNA instance data.
+ * @param type Parameter type to retrieve.
+ * @param out_value Output buffer for the parameter value.
+ * @param out_size Size of the output buffer.
+ * @param in_value Optional input parameter (e.g. ldt_params for CPC query).
+ * @param in_size Size of the input parameter.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_request_get_parameter(struct gna_instance_data *gna,
+				    enum inference_request_param_type type,
+				    void *out_value, uint32_t out_size,
+				    const void *in_value, uint32_t in_size);
+
+/*! @brief Sets a parameter on the request context.
+ *
+ * @param gna The GNA instance data.
+ * @param type Parameter type to set.
+ * @param in_value Input parameter value.
+ * @param in_size Size of the input parameter.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_request_set_parameter(struct gna_instance_data *gna,
+				    enum inference_request_param_type type,
+				    const void *in_value, uint32_t in_size);
+
+/*! @brief Registers an HPP (High Priority Processing) client.
+ *
+ * @param client_id Output: HPP client handle.
+ * @param total_icpc Total instruction CPC budget.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_register_hpp_client(struct hpp_client_handle *client_id, uint32_t total_icpc);
+
+/*! @brief Unregisters an HPP client.
+ *
+ * @param client_id HPP client handle to unregister.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_unregister_hpp_client(struct hpp_client_handle client_id);
+
+/*! @brief Starts inference synchronously via HPP.
+ *
+ * @param gna The GNA instance data.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_request_start_hpp_sync(struct gna_instance_data *gna);
+
+/*! @brief Starts inference asynchronously via HPP.
+ *
+ * @param gna The GNA instance data.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_request_start_hpp_async(struct gna_instance_data *gna);
+
+/* ----------- V4 extended API ----------- */
+
+/*! @brief Retrieves model context size with private scratch consideration.
+ *
+ * @param model Pointer to the model.
+ * @param private_scratch If true, excludes inline scratch from size.
+ * @returns Model context size in bytes.
+ */
+uint32_t inference_get_model_ctx_size_ex(struct inference_model *model,
+					 bool private_scratch);
+
+/*! @brief Initializes model using extended configuration.
+ *
+ * @param cfg Pointer to the model configuration parameters.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_model_init_ex(const struct inference_model_cfg *cfg);
+
+/*! @brief Initializes request using extended configuration.
+ *
+ * @param cfg Pointer to the request configuration parameters.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_request_init_ex(const struct inference_request_cfg *cfg);
+
+/*! @brief Registers HPP client using extended configuration.
+ *
+ * @param cfg Pointer to the HPP client configuration parameters.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_register_hpp_client_ex(const struct inference_hpp_client_cfg *cfg);
+
+/*! @brief Starts inference using parameters from request context.
+ *
+ * Priority and sync mode are taken from request context settings.
+ *
+ * @param gna The GNA instance data.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_request_start_ex(struct gna_instance_data *gna);
 
 #endif /* __SOF_LIB_INFERENCE_SERVICE_H__ */

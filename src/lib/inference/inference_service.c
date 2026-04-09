@@ -340,3 +340,128 @@ void inference_free(struct gna_instance_data *gna)
 		rfree(gna);
 }
 EXPORT_SYMBOL(inference_free);
+
+/* ----------- V1 accessors ----------- */
+
+int inference_model_get_ro_data(struct gna_model_ctx *model_ctx,
+				const uint8_t **ro_data, size_t *ro_size)
+{
+	if (!model_ctx || !ro_data || !ro_size)
+		return -EINVAL;
+
+	*ro_data = model_ctx->ro;
+	*ro_size = model_ctx->ro_size;
+	return 0;
+}
+EXPORT_SYMBOL(inference_model_get_ro_data);
+
+uint32_t inference_model_get_ldt_number(struct gna_model_ctx *model_ctx)
+{
+	if (!model_ctx)
+		return 0;
+
+	return model_ctx->ldt_number;
+}
+EXPORT_SYMBOL(inference_model_get_ldt_number);
+
+int inference_model_get_user_metadata(struct gna_model_ctx *model_ctx,
+				      uint8_t **metadata, size_t *metadata_size)
+{
+	if (!model_ctx || !metadata || !metadata_size)
+		return -EINVAL;
+
+	if (!model_ctx->user_data)
+		return -ENODATA;
+
+	*metadata = model_ctx->user_data;
+	*metadata_size = model_ctx->user_data_size;
+
+	return 0;
+}
+EXPORT_SYMBOL(inference_model_get_user_metadata);
+
+/* ----------- V2 layer range ----------- */
+
+int inference_update_layers_range(struct gna_instance_data *gna,
+				  uint32_t ldt_layer_start, uint32_t layer_count)
+{
+	return -EINVAL;
+}
+EXPORT_SYMBOL(inference_update_layers_range);
+
+/* ----------- V3 HPP and parameters ----------- */
+
+int inference_request_get_parameter(struct gna_instance_data *gna,
+				    enum inference_request_param_type type,
+				    void *out_value, uint32_t out_size,
+				    const void *in_value, uint32_t in_size)
+{
+	return -EINVAL;
+}
+EXPORT_SYMBOL(inference_request_get_parameter);
+
+int inference_request_set_parameter(struct gna_instance_data *gna,
+				    enum inference_request_param_type type,
+				    const void *in_value, uint32_t in_size)
+{
+	return -EINVAL;
+}
+EXPORT_SYMBOL(inference_request_set_parameter);
+
+int inference_register_hpp_client(struct hpp_client_handle *client_id, uint32_t total_icpc)
+{
+	return -EINVAL;
+}
+EXPORT_SYMBOL(inference_register_hpp_client);
+
+int inference_unregister_hpp_client(struct hpp_client_handle client_id)
+{
+	return -EINVAL;
+}
+EXPORT_SYMBOL(inference_unregister_hpp_client);
+
+int inference_request_start_hpp_sync(struct gna_instance_data *gna)
+{
+	return -EINVAL;
+}
+EXPORT_SYMBOL(inference_request_start_hpp_sync);
+
+int inference_request_start_hpp_async(struct gna_instance_data *gna)
+{
+	return -EINVAL;
+}
+EXPORT_SYMBOL(inference_request_start_hpp_async);
+
+/* ----------- V4 extended API ----------- */
+
+uint32_t inference_get_model_ctx_size_ex(struct inference_model *model,
+					 bool private_scratch)
+{
+	/* TODO: account for private scratch */
+	return inference_get_model_ctx_size(model);
+}
+EXPORT_SYMBOL(inference_get_model_ctx_size_ex);
+
+int inference_model_init_ex(const struct inference_model_cfg *cfg)
+{
+	return -EINVAL;
+}
+EXPORT_SYMBOL(inference_model_init_ex);
+
+int inference_request_init_ex(const struct inference_request_cfg *cfg)
+{
+	return -EINVAL;
+}
+EXPORT_SYMBOL(inference_request_init_ex);
+
+int inference_register_hpp_client_ex(const struct inference_hpp_client_cfg *cfg)
+{
+	return -EINVAL;
+}
+EXPORT_SYMBOL(inference_register_hpp_client_ex);
+
+int inference_request_start_ex(struct gna_instance_data *gna)
+{
+	return -EINVAL;
+}
+EXPORT_SYMBOL(inference_request_start_ex);
