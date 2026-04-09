@@ -26,4 +26,13 @@ if ACE_VERSION_3_0
 			This option is used to Enable GNA 4.0 hardware for Inference Service.
 endif
 
+if ACE_VERSION_4_0
+	config GNA_HW_VER_45
+		bool "GNA 4.5 hardware"
+		default y
+		help
+			This option enables GNA 4.5 hardware support for the
+			Inference Service on ACE 4.0 (NVL) platforms.
+endif
+
 endif # INFERENCE_SERVICE

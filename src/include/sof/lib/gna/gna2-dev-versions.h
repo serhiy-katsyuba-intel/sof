@@ -81,6 +81,11 @@ typedef enum Gna2DeviceVersion {
 	 */
 	Gna2DeviceVersionEmbedded4_0_CE8 = 0x40E8,
 	/**
+	 * GNA 4.5 embedded device on ACE.
+	 * A ::Gna2DeviceGeneration4_5 generation device.
+	 */
+	Gna2DeviceVersionEmbedded4_5 = 0x45E,
+	/**
 	 * Value indicating no supported hardware device available.
 	 * Software emulation (fall-back) will be used.
 	 * @see Gna2RequestConfigEnableHardwareConsistency().
