@@ -16,6 +16,9 @@
 #include <sof/lib/gna/gna2-tlv-reader.h>
 #include <sof/lib/gna/gna2-tlv.h>
 #include <rtos/wait.h>
+#if CONFIG_INTEL_GNA34_7BAR
+#include <adsp_memory.h>
+#endif
 
 
 LOG_MODULE_REGISTER(intel_gna, CONFIG_SOF_LOG_LEVEL);
@@ -107,6 +110,29 @@ int32_t gna_model_parse_tlv(struct gna_instance_data *gna)
 	if (status == Gna2TlvStatusSuccess && val_size > 0) {
 		model_ctx->ldt = (uint8_t *)value;
 		model_ctx->ldt_size = val_size;
+
+		/* If model data is in IMR (L3), copy LDT to SRAM so GNA
+		 * HW can quickly access it.
+		 */
+#if CONFIG_INTEL_GNA34_7BAR
+		if ((uintptr_t)model_ctx->model_data >= L3_MEM_BASE_ADDR &&
+		    (uintptr_t)model_ctx->model_data < L3_MEM_BASE_ADDR + L3_MEM_SIZE) {
+			uint8_t *ldt_copy = rballoc_align(SOF_MEM_FLAG_USER,
+							 model_ctx->ldt_size,
+							 GNA_DRV_BUFFER_ALIGNMENT);
+			if (!ldt_copy) {
+				tr_err(&intel_gna_tr,
+				       "GNA model: LDT SRAM copy alloc failed");
+				return -ENOMEM;
+			}
+			memcpy_s(ldt_copy, model_ctx->ldt_size,
+				 model_ctx->ldt, model_ctx->ldt_size);
+			sys_cache_data_flush_and_invd_range(ldt_copy,
+							   model_ctx->ldt_size);
+			model_ctx->ldt = ldt_copy;
+			model_ctx->ldt_allocated = true;
+		}
+#endif
 
 		status = Gna2TlvFindInArray(model_ctx->model_data, model_ctx->model_size,
 					    Gna2TlvTypeReadOnlyData, &val_size,
@@ -462,6 +488,14 @@ int gna_remove_model(struct gna_instance_data *gna)
 	}
 
 	new_scratch = ROUND_UP(gna_get_used_common_scratch(gna), CONFIG_MM_DRV_PAGE_SIZE);
+
+#if CONFIG_INTEL_GNA34_7BAR
+	if (model_ctx->ldt_allocated) {
+		rfree(model_ctx->ldt);
+		model_ctx->ldt = NULL;
+		model_ctx->ldt_allocated = false;
+	}
+#endif
 
 	if (new_scratch < curr_scratch) {
 		tr_info(&intel_gna_tr, "GNA model: common scratch buffer size decreased");

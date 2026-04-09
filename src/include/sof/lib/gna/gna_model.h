@@ -41,6 +41,7 @@ struct gna_model_ctx {
 #if CONFIG_INTEL_GNA34_7BAR
 	uint8_t *ldt;		      /**< Pointer to the LDT buffer (7BAR) */
 	uint32_t ldt_size;	      /**< Size of the LDT buffer in bytes */
+	bool ldt_allocated;	      /**< True if LDT was copied from IMR */
 #endif
 
 	float input_scale_factor;  /**< Input scale factor */
