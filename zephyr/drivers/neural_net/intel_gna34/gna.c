@@ -95,6 +95,18 @@ ErrorCode gna_device_process_request(gna_device *self, gna_request_internal *req
 
 	memcpy(dst, src, request->ctx_size);
 
+	/* Update layer range in descriptor */
+	current_gna_descriptor->bits.lacnt = request->lyrs_to_exec;
+	if (request->lyr_index > 0) {
+#if CONFIG_INTEL_GNA34_7BAR
+		current_gna_descriptor->bits.labase =
+			(request->lyr_index * GNA_XNN_LYR_SIZE) | 0x06;
+#else
+		current_gna_descriptor->bits.labase =
+			(request->lyr_index * GNA_XNN_LYR_SIZE) | 0x01;
+#endif
+	}
+
 #if CONFIG_INTEL_GNA34_6BAR || CONFIG_INTEL_GNA34_7BAR
 	current_gna_descriptor->bits.bar1 = MBAR_VALUE_INPUT((uint32_t)(request->input));
 	current_gna_descriptor->bits.bar2 = MBAR_VALUE_OUTPUT((uint32_t)(request->output));
@@ -762,6 +774,18 @@ ErrorCode gna_init_request(const struct device *dev, gna_request *request,
 	request_int->xnn_state = state;
 	request_int->xnn_state_size = model_state_size;
 
+	/* Setup layer range: if layer_count is 0 or covers the whole model,
+	 * execute all layers; otherwise use the requested subset.
+	 */
+	if (layer_count == 0 || layer_count >= model_int->model_id.model_ldt_num_entries ||
+	    (layer_count + layer_offset) > model_int->model_id.model_ldt_num_entries) {
+		request_int->lyr_index = 0;
+		request_int->lyrs_to_exec = model_int->model_id.model_ldt_num_entries;
+	} else {
+		request_int->lyr_index = layer_offset;
+		request_int->lyrs_to_exec = layer_count;
+	}
+
 	GNA_DEVICE_UNLOCK;
 
 	/* setup fields in user request */
@@ -770,6 +794,8 @@ ErrorCode gna_init_request(const struct device *dev, gna_request *request,
 	request->stop_timestmp = 0;
 	request->state = state;
 	request->model_state_size = model_state_size;
+	request->layer_offset = request_int->lyr_index;
+	request->layers_count = request_int->lyrs_to_exec;
 #if CONFIG_INTEL_GNA34_HW_STATS
 	request->ptc_cycles = 0;
 	request->psc_cycles = 0;

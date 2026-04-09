@@ -23,6 +23,9 @@ struct gna_request_ctx {
 	int requests_started;    /**< Number of GNA inference requests started */
 	int requests_completed ; /**< Number of GNA inference requests completed */
 
+	uint32_t ldt_layer_start; /**< Starting layer index (0 = first) */
+	uint32_t layer_count;    /**< Number of layers to execute (0 = all) */
+
 	uint8_t *input_buffer;	/**< Pointer to the input buffer */
 	uint8_t *output_buffer; /**< Pointer to the output buffer */
 	uint8_t *state_buffer;	/**< Pointer to the state buffer */

@@ -43,7 +43,7 @@
 #define SIZE_OF_GNA_REQUEST_DB_T 12
 #define SIZE_OF_GNA_MODEL_DB_T   12
 
-#define SIZE_OF_GNA_REQUEST_DB_ELEM_T 64
+#define SIZE_OF_GNA_REQUEST_DB_ELEM_T 72
 #define SIZE_OF_GNA_MODEL_DB_ELEM_T   128 /* 72 + reserved */
 
 /*! - GNA pools and databases sizes - number of elements -- */

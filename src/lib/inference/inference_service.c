@@ -385,7 +385,13 @@ EXPORT_SYMBOL(inference_model_get_user_metadata);
 int inference_update_layers_range(struct gna_instance_data *gna,
 				  uint32_t ldt_layer_start, uint32_t layer_count)
 {
-	return -EINVAL;
+	if (!gna || !gna->request_ctx)
+		return -EINVAL;
+
+	gna->request_ctx->ldt_layer_start = ldt_layer_start;
+	gna->request_ctx->layer_count = layer_count;
+
+	return 0;
 }
 EXPORT_SYMBOL(inference_update_layers_range);
 

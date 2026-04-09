@@ -38,6 +38,7 @@
 #define FREE_SLAB_U8  0xFF
 
 #define GNA_DESC_SIZE SIZE_OF_GNA_DESC_MMU_DIS
+#define GNA_XNN_LYR_SIZE 64 /* Size of a single layer descriptor in bytes */
 
 typedef enum _gna_db_entry_state {
 	GNA_DB_ENTRY_EMPTY = 0,
@@ -64,6 +65,9 @@ typedef struct _gna_request_internal {
 	uint32_t input_size;
 	void *output; /* output buffer */
 	uint32_t output_size;
+
+	uint32_t lyr_index;    /* starting layer index */
+	uint32_t lyrs_to_exec; /* number of layers to execute */
 
 	/* GNA request callback parameters */
 	pfn_gna_request_done callbackFn;

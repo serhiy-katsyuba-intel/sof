@@ -563,7 +563,7 @@ int gna_request_start(struct gna_instance_data *gna)
 
 	ret = intel_gna34_init_request(
 	    gna->dev, &req_ctx->gna_request, req_ctx->model->model_id, req_ctx->state_buffer,
-	    req_ctx->model->state_buffer_size, 0, req_ctx->model->ldt_number);
+	    req_ctx->model->state_buffer_size, req_ctx->ldt_layer_start, req_ctx->layer_count);
 	if (ret) {
 		tr_err(&intel_gna_tr, "Intel GNA: request initialization error! ret=%d",
 		       ret);
