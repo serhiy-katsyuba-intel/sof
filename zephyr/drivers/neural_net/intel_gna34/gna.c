@@ -616,28 +616,44 @@ ErrorCode gna_setup_model(const struct device *dev, gna_model_id *model_id,
 
 	ec = gna_model_db_setup(self, myModel);
 	myModel->model_id.model_ro_ptr = model;
+	myModel->model_id.model_ro_size = model_ro_size;
 	myModel->model_id.model_ldt_num_entries = model_ldt_num_entries;
 
 	/* Setup GNA descriptor */
 	gna_desc = (GNA_DESC_MMU_DIS *)myModel->model_id.model_ctx_ptr;
+
+	/* Initialize descriptor to zero */
+	memset(gna_desc, 0, sizeof(GNA_DESC_MMU_DIS));
+
+	/* Flush model RO data from D-cache */
+	if (model_ro_size > 0)
+		sys_cache_data_flush_and_invd_range(model, model_ro_size);
 
 #if !CONFIG_INTEL_GNA34_7BAR
 	gna_desc->bits.maxaddr =
 		0xffffffC0; /* setup max address - in MMU_disablde mode
 			     * this protection is useless
 			     */
-#endif
-#if CONFIG_INTEL_GNA34_7BAR
-	gna_desc->bits.labase = 0x06;                 /* setup BAR5 (index 6) offset 0 */
-#else
 	gna_desc->bits.labase = 0x01;                 /* setup BAR0 offset 0 */
+#else
+	/* Flush LDT data from D-cache */
+	if (model_id->model_ldt_size > 0)
+		sys_cache_data_flush_and_invd_range(model_id->model_ldt_ptr,
+						   model_id->model_ldt_size);
+
+	gna_desc->bits.labase = 0x06;                 /* setup BAR5 (index 6) offset 0 */
+	gna_desc->bits.bar5 = MBAR_VALUE_LDT((uint32_t)model_id->model_ldt_ptr);
 #endif
 	gna_desc->bits.lacnt = model_ldt_num_entries; /* default - whole model execution */
-#if CONFIG_INTEL_GNA34_7BAR
 	gna_desc->bits.bar0 = MBAR_VALUE_RO((uint32_t)model);
-	gna_desc->bits.bar5 = MBAR_VALUE_LDT((uint32_t)model);
-#else
-	gna_desc->bits.bar0 = (uint32_t)model; /* point to model RO area, should start with LDT */
+#if CONFIG_INTEL_GNA34_6BAR || CONFIG_INTEL_GNA34_7BAR
+	/* setup scratch BAR - BAR3 */
+	gna_desc->bits.bar3 = MBAR_VALUE_SCRATCH((uint32_t)myModel->model_id.gna_ctx_ptr);
+#endif
+#if CONFIG_INTEL_GNA34_ACC_CTL
+	gna_desc->bits.mlmt0 = model_ro_size;
+	gna_desc->bits.mlmt5 = model_id->model_ldt_size;
+	gna_desc->bits.mlmt3 = model_id->model_scratch_size;
 #endif
 
 	GNA_DEVICE_UNLOCK;

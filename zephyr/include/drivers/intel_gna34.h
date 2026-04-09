@@ -84,6 +84,11 @@ typedef struct _gna_model_id {
 	void *model_ctx_ptr;
 	void *input_config_ptr;
 	void *model_ro_ptr;
+#if CONFIG_INTEL_GNA34_7BAR
+	void *model_ldt_ptr;
+	uint32_t model_ldt_size;
+	uint32_t model_scratch_size;
+#endif
 	GNA_MODEL_UUID model_global_id;
 } gna_model_id;
 
