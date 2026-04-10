@@ -107,10 +107,13 @@ struct inference_model_cfg {
 	size_t cb;
 	/*!< Source of model data */
 	enum inference_model_source model_source;
-	/*!< Pointer to model data (when source is RAW_POINTER) */
-	struct inference_model *model;
-	/*!< GUID of FTLM module (when source is FTLM_MODULE) */
-	uint32_t ftlm_module_guid[4];
+	/*!< Model data source */
+	union {
+		/*!< Pointer to model data (when source is RAW_POINTER) */
+		struct inference_model *model_data;
+		/*!< GUID of FTLM module (when source is FTLM_MODULE) */
+		uint32_t ftlm_module_guid[4];
+	} model;
 	/*!< GNA instance data */
 	struct gna_instance_data *gna;
 	/*!< Model context size */
@@ -139,6 +142,8 @@ struct inference_request_cfg {
 	struct gna_instance_data *gna;
 	/*!< Request context size */
 	uint32_t request_ctx_size;
+	/*!< Associated model context (must be already initialized) */
+	struct gna_model_ctx *model_ctx;
 	/*!< Optional chained buffer descriptor (NULL if not used) */
 	struct inference_chained_buffer *chain;
 };
