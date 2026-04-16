@@ -118,6 +118,8 @@ struct inference_model_cfg {
 	struct gna_instance_data *gna;
 	/*!< Model context size */
 	uint32_t model_ctx_size;
+	/*!< GNA device instance ID (0 = default) */
+	uint32_t gna_dev_instance;
 	/*!< Private scratch buffer (NULL for common scratch) */
 	uint8_t *private_scratch;
 	/*!< Private scratch buffer size (0 for auto) */
@@ -156,6 +158,8 @@ struct inference_hpp_client_cfg {
 	struct hpp_client_handle *client_id;
 	/*!< Total instruction CPC budget for all requests */
 	uint32_t total_icpc;
+	/*!< GNA device instance ID (0 = default) */
+	uint32_t gna_dev_instance;
 };
 
 /**
@@ -167,6 +171,13 @@ struct inference_hpp_client_cfg {
  * @return A pointer to the gna_instance_data structure.
  */
 struct gna_instance_data *inference_init(void);
+
+/*! @brief Gets a GNA device by instance index.
+ *
+ * @param instance Device instance index.
+ * @returns Pointer to the device, or NULL if invalid.
+ */
+const struct device *inference_get_device_by_instance(uint32_t instance);
 
 /**
  * @brief Frees the resources used by the GNA inference service.
@@ -198,6 +209,19 @@ uint32_t inference_get_model_ctx_size(struct inference_model *model);
 int inference_model_init(struct inference_model *model,
 			 struct gna_instance_data *gna,
 			 uint32_t model_ctx_size);
+
+/*! @brief Initializes Model Context with GNA device instance selection.
+ *
+ * @param model pointer to neural network model.
+ * @param gna pointer to GNA instance data.
+ * @param model_ctx_size size of model context.
+ * @param gna_dev_instance GNA device instance ID.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_model_init_with_device(struct inference_model *model,
+				     struct gna_instance_data *gna,
+				     uint32_t model_ctx_size,
+				     uint32_t gna_dev_instance);
 
 /*! @brief Retrieves scaling factors defined by neural network model
  *
@@ -353,9 +377,12 @@ int inference_request_set_parameter(struct gna_instance_data *gna,
  *
  * @param client_id Output: HPP client handle.
  * @param total_icpc Total instruction CPC budget.
+ * @param gna_dev_instance GNA device instance ID (0 = default).
  * @returns 0 on success, an error code otherwise.
  */
-int inference_register_hpp_client(struct hpp_client_handle *client_id, uint32_t total_icpc);
+int inference_register_hpp_client(struct hpp_client_handle *client_id,
+				 uint32_t total_icpc,
+				 uint32_t gna_dev_instance);
 
 /*! @brief Unregisters an HPP client.
  *

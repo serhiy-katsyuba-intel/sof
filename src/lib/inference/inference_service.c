@@ -42,6 +42,18 @@ static const struct device *gna_get_zephyr_device(void)
 
 	return NULL;
 }
+
+const struct device *inference_get_device_by_instance(uint32_t instance)
+{
+	if (instance >= ARRAY_SIZE(gna_z_dev)) {
+		tr_err(&inference_svc_tr, "GNA device instance %u out of range (max %zu)",
+		       instance, ARRAY_SIZE(gna_z_dev));
+		return NULL;
+	}
+
+	return gna_z_dev[instance];
+}
+EXPORT_SYMBOL(inference_get_device_by_instance);
 #endif /* CONFIG_ZEPHYR_NATIVE_DRIVERS */
 
 struct gna_instance_data *inference_init(void)
@@ -135,6 +147,29 @@ model_err:
 	return ret;
 }
 EXPORT_SYMBOL(inference_model_init);
+
+int inference_model_init_with_device(struct inference_model *model,
+				     struct gna_instance_data *gna,
+				     uint32_t model_ctx_size,
+				     uint32_t gna_dev_instance)
+{
+	const struct device *dev;
+
+	if (!gna)
+		return -EINVAL;
+
+	dev = inference_get_device_by_instance(gna_dev_instance);
+	if (!dev) {
+		tr_err(&inference_svc_tr, "GNA device instance %u not available",
+		       gna_dev_instance);
+		return -ENODEV;
+	}
+
+	gna->dev = dev;
+
+	return inference_model_init(model, gna, model_ctx_size);
+}
+EXPORT_SYMBOL(inference_model_init_with_device);
 
 int inference_model_release(struct gna_instance_data *gna)
 {
@@ -414,7 +449,9 @@ int inference_request_set_parameter(struct gna_instance_data *gna,
 }
 EXPORT_SYMBOL(inference_request_set_parameter);
 
-int inference_register_hpp_client(struct hpp_client_handle *client_id, uint32_t total_icpc)
+int inference_register_hpp_client(struct hpp_client_handle *client_id,
+				 uint32_t total_icpc,
+				 uint32_t gna_dev_instance)
 {
 	return -EINVAL;
 }
@@ -450,7 +487,15 @@ EXPORT_SYMBOL(inference_get_model_ctx_size_ex);
 
 int inference_model_init_ex(const struct inference_model_cfg *cfg)
 {
-	return -EINVAL;
+	if (!cfg || !cfg->gna)
+		return -EINVAL;
+
+	if (!cfg->model.model_data)
+		return -EINVAL;
+
+	return inference_model_init_with_device(cfg->model.model_data, cfg->gna,
+						cfg->model_ctx_size,
+						cfg->gna_dev_instance);
 }
 EXPORT_SYMBOL(inference_model_init_ex);
 
@@ -462,7 +507,11 @@ EXPORT_SYMBOL(inference_request_init_ex);
 
 int inference_register_hpp_client_ex(const struct inference_hpp_client_cfg *cfg)
 {
-	return -EINVAL;
+	if (!cfg)
+		return -EINVAL;
+
+	return inference_register_hpp_client(cfg->client_id, cfg->total_icpc,
+					     cfg->gna_dev_instance);
 }
 EXPORT_SYMBOL(inference_register_hpp_client_ex);
 
