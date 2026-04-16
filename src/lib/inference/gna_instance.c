@@ -15,6 +15,7 @@
 #include <sof/lib/uuid.h>
 #include <sof/lib/gna/gna2-tlv-reader.h>
 #include <sof/lib/gna/gna2-tlv.h>
+#include <drivers/intel_gna34.h>
 #include <rtos/wait.h>
 #if CONFIG_INTEL_GNA34_7BAR
 #include <adsp_memory.h>
@@ -46,19 +47,39 @@ static void gna_lock_init(struct gna_instance_data *gna)
 
 #endif
 
-static bool gna_check_hw_version(uint32_t gna_hw)
+/**
+ * Convert GNA lib device version enum to ACE HW version number.
+ * Model TLV stores lib enum (e.g. 0x45E), driver caps store ACE number (e.g. 45).
+ */
+static uint32_t gna_lib_to_ace_version(uint32_t lib_ver)
 {
-#if CONFIG_ACE_VERSION_1_5
-	return gna_hw == GNA_35_VERSION || gna_hw == GNA_35E_VERSION;
-#elif CONFIG_ACE_VERSION_2_0
-	return gna_hw == GNA_36_VERSION;
-#elif CONFIG_ACE_VERSION_3_0
-	return gna_hw == GNA_40_VERSION;
-#elif CONFIG_ACE_VERSION_4_0
-	return gna_hw == GNA_45_VERSION || gna_hw == GNA_46_VERSION;
-#else
-	return 0;
-#endif
+	switch (lib_ver) {
+	case Gna2DeviceVersionEmbedded3_5:
+	case Gna2DeviceVersionEmbeddedAE3_5:
+		return 35;
+	case Gna2DeviceVersionEmbedded3_6:
+		return 36;
+	case Gna2DeviceVersionEmbedded4_0:
+	case Gna2DeviceVersionEmbedded4_0_CE8:
+		return 40;
+	case Gna2DeviceVersionEmbedded4_5:
+		return 45;
+	case Gna2DeviceVersionEmbedded4_6:
+		return 46;
+	default:
+		return 0;
+	}
+}
+
+/**
+ * Check if model HW version matches the actual GNA device.
+ * Uses runtime caps.version from the device.
+ */
+static bool gna_check_hw_version(uint32_t model_lib_ver, uint32_t dev_ace_ver)
+{
+	uint32_t model_ace_ver = gna_lib_to_ace_version(model_lib_ver);
+
+	return model_ace_ver == dev_ace_ver;
 }
 
 int32_t gna_model_parse_tlv(struct gna_instance_data *gna)
@@ -79,6 +100,15 @@ int32_t gna_model_parse_tlv(struct gna_instance_data *gna)
 		return status;
 	}
 
+	/* Get runtime HW version from device */
+	gna_capabilities caps;
+	ErrorCode ec = intel_gna34_device_get_caps(gna->dev, &caps);
+
+	if (ec != 0) {
+		tr_err(&intel_gna_tr, "Failed to get GNA device caps, ec %d", ec);
+		return Gna2TlvStatusVersionNotSupported;
+	}
+
 	/* Check GNA HW version*/
 	status = Gna2TlvFindInArray(model_ctx->model_data, model_ctx->model_size,
 				    Gna2TlvTypeGnaHwVersion, &val_size, (void **)&value);
@@ -88,14 +118,15 @@ int32_t gna_model_parse_tlv(struct gna_instance_data *gna)
 		return status;
 	}
 
-	tr_info(&intel_gna_tr, "GNA model tlv: hw version %d", *value);
+	tr_info(&intel_gna_tr, "GNA model tlv: hw version 0x%x, device version %d",
+		*value, caps.version);
 
-	ret = gna_check_hw_version(*value);
+	ret = gna_check_hw_version(*value, caps.version);
 	if (!ret) {
 		tr_err(
 		    &intel_gna_tr,
-		    "GNA model version doesn't match platform hardware! model_hw_ver %d",
-		    *value);
+		    "GNA model version doesn't match device! model_hw_ver 0x%x dev_ver %d",
+		    *value, caps.version);
 		return Gna2TlvStatusVersionNotSupported;
 	}
 

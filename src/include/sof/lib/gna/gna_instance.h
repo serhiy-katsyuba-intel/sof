@@ -97,12 +97,14 @@ int gna_remove_model(struct gna_instance_data *gna);
 int32_t gna_model_parse_tlv(struct gna_instance_data *gna);
 
 /**
- * Checks the hardware version of the GNA.
+ * Checks if the model HW version matches the actual GNA device.
+ * Uses runtime caps.version from the device.
  *
- * @param gna_hw The GNA hardware version.
- * @return true if the hardware version matches, false otherwise.
+ * @param model_lib_ver The GNA model lib version from TLV (e.g. Gna2DeviceVersionEmbedded4_5).
+ * @param dev_ace_ver The ACE HW version from device capabilities (e.g. 45).
+ * @return true if the model version matches the device, false otherwise.
  */
-static bool gna_check_hw_version(uint32_t gna_hw);
+static bool gna_check_hw_version(uint32_t model_lib_ver, uint32_t dev_ace_ver);
 
 /**
  * Gets the size of the common scratch memory used by the GNA instance.
