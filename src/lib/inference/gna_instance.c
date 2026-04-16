@@ -55,7 +55,7 @@ static bool gna_check_hw_version(uint32_t gna_hw)
 #elif CONFIG_ACE_VERSION_3_0
 	return gna_hw == GNA_40_VERSION;
 #elif CONFIG_ACE_VERSION_4_0
-	return gna_hw == GNA_45_VERSION;
+	return gna_hw == GNA_45_VERSION || gna_hw == GNA_46_VERSION;
 #else
 	return 0;
 #endif

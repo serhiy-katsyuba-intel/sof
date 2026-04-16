@@ -30,6 +30,7 @@
 #define GNA_36_VERSION Gna2DeviceVersion3_6
 #define GNA_40_VERSION Gna2DeviceVersionEmbedded4_0
 #define GNA_45_VERSION Gna2DeviceVersionEmbedded4_5
+#define GNA_46_VERSION Gna2DeviceVersionEmbedded4_6
 
 /**
  * @brief Structure representing a model reference in GNA.

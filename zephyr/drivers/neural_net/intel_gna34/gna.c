@@ -475,10 +475,10 @@ int gna_device_init(const struct device *dev)
 
 	/* Get capabilities, check version */
 	self->capabilities.version = adsphal_gna_get_version(gna_base_addr);
-	if (self->capabilities.version != CONFIGFW_ADSP_GNA_VERSION) {
+	if (self->capabilities.version > CONFIGFW_ADSP_GNA_VERSION) {
 		GNA_DEVICE_UNLOCK;
 	}
-	RETURN_EC_ON_FAIL((self->capabilities.version == CONFIGFW_ADSP_GNA_VERSION),
+	RETURN_EC_ON_FAIL((self->capabilities.version <= CONFIGFW_ADSP_GNA_VERSION),
 			  ADSP_GNA_HW_NOT_COMPATIBLE);
 
 	self->capabilities.mmu_enabled = adsphal_gna_get_mmu_present(gna_base_addr);
