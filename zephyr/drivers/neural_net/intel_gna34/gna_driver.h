@@ -56,6 +56,7 @@ DCACHE_ALIGN
 	uint32_t current_core;
 	uint32_t base_addr;
 	int irq_no;
+	uint32_t instance_no;
 
 	/* queue and list headers */
 	uint8_t GnaRqueue[SIZE_OF_GNA_RQUEUE_T] DCACHE_ALIGN;

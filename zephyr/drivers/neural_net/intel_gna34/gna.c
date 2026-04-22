@@ -148,12 +148,12 @@ ErrorCode gna_device_process_request(gna_device *self, gna_request_internal *req
 
 		/* clear current core */
 		self->cores_ie_mask &= ~current_core_mask;
-		ACE_DINT[self->current_core].ie[ACE_INTL_ML] = 0;
+		ACE_DINT[self->current_core].ie[ACE_INTL_ML] &= ~BIT(self->instance_no);
 
 		/* setup new core */
 		self->cores_ie_mask |= request_core_mask;
 		self->current_core = request->core_id;
-		ACE_DINT[self->current_core].ie[ACE_INTL_ML] = 1;
+		ACE_DINT[self->current_core].ie[ACE_INTL_ML] |= BIT(self->instance_no);
 	}
 #endif
 
@@ -250,6 +250,14 @@ void gna_device_process_isr(struct device *dev)
 	gna_request *request;
 	gna_device *self = (gna_device *)dev->data;
 	uint32_t gna_base_addr = self->base_addr;
+
+	/* Shared IRQ: skip if not actively processing */
+	if (!self->queue_processing_active)
+		return;
+
+	/* Check if this instance has a pending interrupt */
+	if (!adsphal_gna_get_interrupt_status(gna_base_addr))
+		return;
 
 	/* get request entry from queue */
 	GNA_DEVICE_LOCK;
@@ -418,11 +426,16 @@ ErrorCode gna_device_restore(const struct device *dev)
 
 	gna_device *self = (gna_device *)dev->data;
 
-	irq_enable(DT_INST_IRQN(0));
-	ACE_DINT[self->current_core].ie[ACE_INTL_ML] = 1;
+	irq_enable(self->irq_no);
+	ACE_DINT[self->current_core].ie[ACE_INTL_ML] |= BIT(self->instance_no);
 
 	return ADSP_SUCCESS;
 }
+
+struct gna_driver_config {
+	uint32_t instance_no;
+	void (*irq_config)(void);
+};
 
 int gna_device_init(const struct device *dev)
 {
@@ -431,6 +444,7 @@ int gna_device_init(const struct device *dev)
 	RETURN_EC_ON_FAIL((dev != NULL), ADSP_ERROR_NULL_POINTER_AS_PARAM);
 
 	gna_device *self = (gna_device *)dev->data;
+	const struct gna_driver_config *config = dev->config;
 
 	RETURN_EC_ON_FAIL((self != NULL), ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	/*
@@ -451,6 +465,7 @@ int gna_device_init(const struct device *dev)
 	/* restore base address and irq number */
 	self->base_addr = gna_base_addr;
 	self->irq_no = irq_no;
+	self->instance_no = config->instance_no;
 
 #if CONFIG_INTEL_GNA34_SHARED
 	/* Initialize shared memory */
@@ -525,11 +540,9 @@ int gna_device_init(const struct device *dev)
 	self->current_core = arch_proc_id();
 	uint32_t current_core_mask = BIT(self->current_core);
 #if !defined(GNA_DRV_WA_POLLING) || (GNA_DRV_WA_POLLING == 0)
-	/* register and enable ML interrupt */
-	IRQ_CONNECT(DT_INST_IRQN(0), IRQ_DEFAULT_PRIORITY, gna_device_process_isr,
-		    DEVICE_DT_INST_GET(0), 0);
-	irq_enable(DT_INST_IRQN(0));
-	ACE_DINT[self->current_core].ie[ACE_INTL_ML] = 1;
+	/* register and enable ML interrupt (per-instance via irq_config) */
+	config->irq_config();
+	ACE_DINT[self->current_core].ie[ACE_INTL_ML] |= BIT(config->instance_no);
 #endif
 
 	self->cores_ie_mask = current_core_mask;
@@ -860,7 +873,7 @@ ErrorCode gna_request_enqueue(const struct device *dev, const gna_request *reque
 	/* check if this core has registered isr */
 	if (!(self->registered_cores_mask & request_core_mask)) {
 		/* register handler from current core == request core */
-		ACE_DINT[self->current_core].ie[ACE_INTL_ML] = 1;
+		ACE_DINT[self->current_core].ie[ACE_INTL_ML] |= BIT(self->instance_no);
 		/* update mask */
 		self->registered_cores_mask |= request_core_mask;
 	}
@@ -998,21 +1011,24 @@ static const struct gna_driver_api intel_gna34_api_funcs = {
 	.restore = gna_device_restore,
 };
 
-struct gna_driver_config {
-	uint32_t instance_no;
-};
-
 #define GNA34_DEVICE_INIT(n)                                                                       \
+	static void intel_gna34_irq_config_##n(void);                                              \
 	static struct gna_driver_config intel_gna34_driver_config_##n = {                          \
 		.instance_no = n,                                                                  \
+		.irq_config = intel_gna34_irq_config_##n,                                          \
 	};                                                                                         \
 	static gna_device intel_gna34_driver_data_##n = {                                          \
 		.base_addr = DT_INST_REG_ADDR_BY_IDX(n, 0),                                        \
 		.irq_no = DT_INST_IRQN(n),                                                         \
 	};                                                                                         \
-												   \
 	DEVICE_DT_INST_DEFINE(n, gna_device_init, NULL, &intel_gna34_driver_data_##n,              \
 			      &intel_gna34_driver_config_##n, POST_KERNEL,                         \
-			      CONFIG_INTEL_GNA34_INIT_PRIORITY, &intel_gna34_api_funcs);
+			      CONFIG_INTEL_GNA34_INIT_PRIORITY, &intel_gna34_api_funcs);           \
+	static void intel_gna34_irq_config_##n(void)                                               \
+	{                                                                                          \
+		IRQ_CONNECT(DT_INST_IRQN(n), 0, gna_device_process_isr,                           \
+			    DEVICE_DT_INST_GET(n), 0);                                             \
+		irq_enable(DT_INST_IRQN(n));                                                       \
+	}
 
 DT_INST_FOREACH_STATUS_OKAY(GNA34_DEVICE_INIT)
