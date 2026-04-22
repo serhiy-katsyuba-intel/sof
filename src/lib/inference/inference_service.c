@@ -99,18 +99,29 @@ EXPORT_SYMBOL(inference_init);
 
 int inference_model_init(struct inference_model *model,
 			 struct gna_instance_data *gna,
-			 uint32_t model_ctx_size)
+			 uint32_t model_ctx_size,
+			 uint32_t gna_dev_instance)
 {
 	struct gna_model_ctx *model_ctx = NULL;
+	const struct device *dev;
 	int32_t tlv_status;
 	int ret;
 
-	tr_info(&inference_svc_tr, "Inference model init");
+	tr_info(&inference_svc_tr, "Inference model init, instance %u", gna_dev_instance);
 
 	if (!gna) {
 		tr_err(&inference_svc_tr, "GNA data is NULL!");
 		return -EINVAL;
 	}
+
+	dev = inference_get_device_by_instance(gna_dev_instance);
+	if (!dev) {
+		tr_err(&inference_svc_tr, "GNA device instance %u not available",
+		       gna_dev_instance);
+		return -ENODEV;
+	}
+
+	gna->dev = dev;
 
 	/* Allocate model context */
 	model_ctx = rzalloc(SOF_MEM_FLAG_USER, model_ctx_size);
@@ -147,29 +158,6 @@ model_err:
 	return ret;
 }
 EXPORT_SYMBOL(inference_model_init);
-
-int inference_model_init_with_device(struct inference_model *model,
-				     struct gna_instance_data *gna,
-				     uint32_t model_ctx_size,
-				     uint32_t gna_dev_instance)
-{
-	const struct device *dev;
-
-	if (!gna)
-		return -EINVAL;
-
-	dev = inference_get_device_by_instance(gna_dev_instance);
-	if (!dev) {
-		tr_err(&inference_svc_tr, "GNA device instance %u not available",
-		       gna_dev_instance);
-		return -ENODEV;
-	}
-
-	gna->dev = dev;
-
-	return inference_model_init(model, gna, model_ctx_size);
-}
-EXPORT_SYMBOL(inference_model_init_with_device);
 
 int inference_model_release(struct gna_instance_data *gna)
 {
@@ -493,9 +481,9 @@ int inference_model_init_ex(const struct inference_model_cfg *cfg)
 	if (!cfg->model.model_data)
 		return -EINVAL;
 
-	return inference_model_init_with_device(cfg->model.model_data, cfg->gna,
-						cfg->model_ctx_size,
-						cfg->gna_dev_instance);
+	return inference_model_init(cfg->model.model_data, cfg->gna,
+				   cfg->model_ctx_size,
+				   cfg->gna_dev_instance);
 }
 EXPORT_SYMBOL(inference_model_init_ex);
 

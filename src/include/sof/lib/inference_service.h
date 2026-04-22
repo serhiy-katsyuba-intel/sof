@@ -199,29 +199,18 @@ void inference_free(struct gna_instance_data *gna);
  */
 uint32_t inference_get_model_ctx_size(struct inference_model *model);
 
-/*! @brief Initializes Model Context instance in provided memory.
+/*! @brief Initializes Model Context on a specific GNA device instance.
  *
  * @param model pointer to neural network model.
  * @param gna pointer to GNA instance data.
  * @param model_ctx_size size of model context.
+ * @param gna_dev_instance GNA device instance index.
  * @returns 0 on success, an error code otherwise.
  */
 int inference_model_init(struct inference_model *model,
 			 struct gna_instance_data *gna,
-			 uint32_t model_ctx_size);
-
-/*! @brief Initializes Model Context with GNA device instance selection.
- *
- * @param model pointer to neural network model.
- * @param gna pointer to GNA instance data.
- * @param model_ctx_size size of model context.
- * @param gna_dev_instance GNA device instance ID.
- * @returns 0 on success, an error code otherwise.
- */
-int inference_model_init_with_device(struct inference_model *model,
-				     struct gna_instance_data *gna,
-				     uint32_t model_ctx_size,
-				     uint32_t gna_dev_instance);
+			 uint32_t model_ctx_size,
+			 uint32_t gna_dev_instance);
 
 /*! @brief Retrieves scaling factors defined by neural network model
  *
