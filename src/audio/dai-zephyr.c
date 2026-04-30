@@ -9,6 +9,7 @@
 #include <sof/audio/component_ext.h>
 #include <sof/audio/format.h>
 #include <sof/audio/pipeline.h>
+#include <esrc.h>	/// TODO: move esrc.h to include/
 #include <module/module/base.h>
 #include <sof/common.h>
 #include <rtos/panic.h>
@@ -301,7 +302,7 @@ static void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 	}
 
 	//TODO: should we read last 4 bytes, not just current 4 bytes???
-	uint32_t feedback_clock = dd->uaol_fb_buf[stat.read_position / 4];
+	uint32_t feedback_value = dd->uaol_fb_buf[stat.read_position / 4];
 
 	ret = sof_dma_reload(dd->uaol_fb_chan->dma, dd->uaol_fb_chan->index, 4);
 	if (ret < 0) {
@@ -309,14 +310,17 @@ static void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 		return;
 	}
 
-	comp_info(dev, "UAOL feedback clock: %u", feedback_clock);
+	comp_info(dev, "UAOL feedback value: %u", feedback_value);
 
-/*
-	TODO:
-	* sanity check if received data looks like a valid clock
+	/* TODO: For Full-Speed USB mul feedback_value by 1000, for High-Speed by 8000 ??? */
+	/* TODO: sanity check if received data looks like a valid clock ??? */
+
+	esrc_set_rate(&dd->esrc, dd->ipc_config.sampling_frequency, 48007);	///!!!
+
+	/*
 	* update eSRC with the received clock
 	* if enough drift collected then adjust UAOL pace
-*/
+	*/
 }
 
 /* this is called by DMA driver every time descriptor has completed */
@@ -387,8 +391,32 @@ dai_dma_cb(struct dai_data *dd, struct comp_dev *dev, uint32_t bytes,
 			}
 		}
 #endif
-		ret = dma_buffer_copy_to(dd->local_buffer, dd->dma_buffer,
-					 dd->process, bytes, dd->chmap);
+		struct comp_buffer *src_buf = dd->local_buffer;
+		size_t added_frames = 0;
+
+		if (dd->uaol_fb_buf && dd->uaol_fb_chan) {
+			buffer_stream_invalidate(dd->local_buffer, bytes);
+
+			struct cir_buf_ptr in = { dd->local_buffer->stream.addr,
+				dd->local_buffer->stream.end_addr, dd->local_buffer->stream.r_ptr };
+			assert(dd->esrc_buffer);
+			struct cir_buf_ptr out = { dd->esrc_buffer->stream.addr,
+				dd->esrc_buffer->stream.end_addr, dd->esrc_buffer->stream.w_ptr };
+			size_t frames = bytes / audio_stream_frame_bytes(&dd->local_buffer->stream);
+
+			size_t added_frames = esrc_process(&dd->esrc, &in, &out, frames);
+			size_t added_bytes = added_frames * audio_stream_frame_bytes(&dd->local_buffer->stream);
+
+			comp_update_buffer_consume(dd->local_buffer, bytes);
+			audio_stream_produce(&dd->esrc_buffer->stream, bytes + added_bytes);
+
+			src_buf = dd->esrc_buffer;
+		}
+
+		size_t extra_bytes = added_frames * audio_stream_frame_bytes(&dd->dma_buffer->stream);
+
+		ret = dma_buffer_copy_to(src_buf, dd->dma_buffer,
+					 dd->process, bytes + extra_bytes, dd->chmap);
 	} else {
 		audio_stream_invalidate(&dd->dma_buffer->stream, bytes);
 		/*
@@ -705,6 +733,12 @@ __cold void dai_common_free(struct dai_data *dd)
 		dd->uaol_fb_buf = NULL;
 		dd->uaol_fb_buf_size = 0;
 	}
+
+	if (dd->esrc_buffer) {
+		buffer_free(dd->esrc_buffer);
+		dd->esrc_buffer = NULL;
+	}
+
 }
 
 __cold static void dai_free(struct comp_dev *dev)
@@ -1184,8 +1218,26 @@ int dai_common_params(struct dai_data *dd, struct comp_dev *dev,
 	}
 
 	err = dai_set_dma_config(dd, dev);
-	if (err < 0)
+	if (err < 0) {
 		comp_err(dev, "set dma config failed.");
+		goto out;
+	}
+
+	/* create esrc output buffer (if needed) */
+	if (dd->ipc_config.type == SOF_DAI_INTEL_UAOL && dd->ipc_config.direction == SOF_IPC_STREAM_PLAYBACK) {
+		/* esrc may add 1 extra frame as a result of interpolation, esrc only works with 32-bit data */
+		size_t esrc_buf_size = (dev->frames + 1) * dd->ipc_config.gtw_fmt->channels_count * 4;
+		dd->esrc_buffer = buffer_alloc_range(NULL, esrc_buf_size, esrc_buf_size, SOF_MEM_FLAG_USER,
+				    PLATFORM_DCACHE_ALIGN, BUFFER_USAGE_NOT_SHARED);
+		if (!dd->esrc_buffer) {
+			comp_err(dev, "failed to alloc esrc buffer");
+			goto out;
+		}
+
+		/* params should be same as local_buffer's */
+		buffer_set_params(dd->esrc_buffer, &params, BUFFER_UPDATE_FORCE);
+	}
+
 out:
 	/*
 	 * Make sure to free all allocated items, all functions
@@ -1298,6 +1350,8 @@ static int setup_uaol_feedback_dma(struct dai_data *dd, struct comp_dev *dev)
 
 	dd->uaol_fb_chan = &dd->dma->chan[channel];
 	dd->uaol_fb_chan->dev_data = dd;
+
+	esrc_init(&dd->esrc, dai->gtw_fmt->channels_count);
 
 	comp_dbg(dev, "New configured UAOL feedback DMA channel index %d", dd->uaol_fb_chan->index);
 
@@ -1447,6 +1501,11 @@ void dai_common_reset(struct dai_data *dd, struct comp_dev *dev)
 		rfree(dd->uaol_fb_buf);
 		dd->uaol_fb_buf = NULL;
 		dd->uaol_fb_buf_size = 0;
+	}
+
+	if (dd->esrc_buffer) {
+		buffer_free(dd->esrc_buffer);
+		dd->esrc_buffer = NULL;
 	}
 
 	dd->wallclock = 0;
