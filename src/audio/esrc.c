@@ -5,7 +5,7 @@
 
 #include <rtos/string.h>
 #include <sof/audio/audio_stream.h>
-#include "esrc.h"
+#include <sof/audio/esrc.h>
 
 void esrc_init(struct esrc *esrc, size_t channels)
 {

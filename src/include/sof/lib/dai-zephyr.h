@@ -28,6 +28,7 @@
 #include <sof/ipc/topology.h>
 #include <sof/audio/pcm_converter.h>
 #include <sof/audio/ipc-config.h>
+#include <sof/audio/esrc.h>
 #include <ipc/dai.h>
 #include <errno.h>
 #include <stddef.h>

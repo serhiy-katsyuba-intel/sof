@@ -9,7 +9,6 @@
 #include <sof/audio/component_ext.h>
 #include <sof/audio/format.h>
 #include <sof/audio/pipeline.h>
-#include <esrc.h>	/// TODO: move esrc.h to include/
 #include <module/module/base.h>
 #include <sof/common.h>
 #include <rtos/panic.h>
