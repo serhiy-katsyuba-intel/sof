@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <zephyr/ztest.h>
 #include <sof/audio/audio_stream.h>
-#include "esrc.h"
+#include <sof/audio/esrc.h>
 
 /* 200 seconds stereo */
 #define NUM_SAMPLES (48000 * 2 * 200)
