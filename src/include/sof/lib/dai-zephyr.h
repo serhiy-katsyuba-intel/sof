@@ -147,13 +147,19 @@ struct dai_data {
 
 	uint64_t wallclock;			/* wall clock at stream start */
 
-	/* TODO: perhaps add some UAOL ifdef ??? */
+	/* TODO: perhaps add some UAOL ifdef ???
+	 * Perhaps encapsulate this is a separate struct uaol uaol; ???
+	 */
+	int uaol_feedback_drift;
+	uint32_t uaol_ms_since_last_adj;
 	struct dma_chan_data *uaol_fb_chan;
 	uint32_t *uaol_fb_buf;
 	size_t uaol_fb_buf_size;
 	struct dma_config *z_config_uaol_fb;
 	struct esrc esrc;
 	struct comp_buffer *esrc_buffer;
+	int uaol_link_id;
+	int uaol_stream_id;
 
 	/*
 	 * flag indicating two-step stop/pause for DAI comp and DAI DMA.
@@ -269,6 +275,10 @@ uint32_t dai_get_init_delay_ms(struct dai *dai);
  * \brief Get DAI stream id
  */
 int dai_get_stream_id(struct dai *dai, int direction);
+
+#ifdef CONFIG_DAI_INTEL_UAOL
+int dai_get_uaol_stream_id(struct dai *dai, int *uaol_link_id, int *uaol_stream_id);
+#endif
 
 /**
  * \brief Configure DMA channel for DAI

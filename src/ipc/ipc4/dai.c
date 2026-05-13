@@ -184,8 +184,11 @@ int ipc_dai_data_config(struct dai_data *dd, struct comp_dev *dev)
 			 dev->ipc_config.frame_fmt, dd->stream_id);
 
 		break;
+#ifdef CONFIG_DAI_INTEL_UAOL
 	case SOF_DAI_INTEL_UAOL:
+		dai_get_uaol_stream_id(dd->dai, &dd->uaol_link_id, &dd->uaol_stream_id);
 		break;
+#endif
 	default:
 		/* other types of DAIs not handled for now */
 		comp_warn(dev, "Unknown dai type %d", dai->type);

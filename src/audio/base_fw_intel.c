@@ -156,6 +156,13 @@ __cold static int uaol_stream_id_to_hda_link_stream_id(int uaol_stream_id)
 
 	return -1;
 }
+
+const struct device *get_uaol_zdevice(int uaol_link_id)
+{
+	/* uaol_link_id is just an index for the device tree device */
+	assert(uaol_link_id < ARRAY_SIZE(uaol_devs));
+	return uaol_devs[uaol_link_id];
+}
 #endif	/* CONFIG_UAOL_INTEL_ADSP */
 
 __cold int basefw_vendor_hw_config(uint32_t *data_offset, char *data)

@@ -276,6 +276,24 @@ static int dai_get_fifo(struct dai *dai, int direction, int stream_id)
 	return fifo_address;
 }
 
+#ifdef CONFIG_DAI_INTEL_UAOL
+int dai_get_uaol_stream_id(struct dai *dai, int *uaol_link_id, int *uaol_stream_id)
+{
+	const struct dai_properties *props;
+	k_spinlock_key_t key;
+
+	key = k_spin_lock(&dai->lock);
+
+	props = dai_get_properties(dai->dev, 0, 0);
+	*uaol_link_id = props->uaol_link_id;
+	*uaol_stream_id = props->uaol_stream_id;
+
+	k_spin_unlock(&dai->lock, key);
+
+	return 0;
+}
+#endif	/* CONFIG_DAI_INTEL_UAOL */
+
 static void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 {
 	assert(dd && dd->uaol_fb_chan && dd->uaol_fb_buf);
@@ -300,7 +318,7 @@ static void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 		return;
 	}
 
-	//TODO: should we read last 4 bytes, not just current 4 bytes???
+	//TODO: REDO!!! use write_position maybe ???: we should read last 4 bytes, not current 4 bytes !!!
 	uint32_t feedback_value = dd->uaol_fb_buf[stat.read_position / 4];
 
 	ret = sof_dma_reload(dd->uaol_fb_chan->dma, dd->uaol_fb_chan->index, 4);
@@ -311,15 +329,34 @@ static void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 
 	comp_info(dev, "UAOL feedback value: %u", feedback_value);
 
-	/* TODO: For Full-Speed USB mul feedback_value by 1000, for High-Speed by 8000 ??? */
-	/* TODO: sanity check if received data looks like a valid clock ??? */
+	const struct device *uaol_zdev = get_uaol_zdevice(dd->uaol_link_id);
+	int freq = uaol_interpret_feedback_value(uaol_zdev, dd->uaol_stream_id, feedback_value);
 
-	esrc_set_rate(&dd->esrc, dd->ipc_config.sampling_frequency, 48007);	///!!!
+	if (freq < 0) {
+		comp_err(dev, "Bad unexpected feedback freq value: %d", freq);
+		return;
+	}
 
-	/*
-	* update eSRC with the received clock
-	* if enough drift collected then adjust UAOL pace
-	*/
+	/* sanity check if received data looks like a valid clock ??? */
+	/* limit drift to -6 .. 6 Hz range !!! */
+	int drift = freq - dd->ipc_config.sampling_frequency;
+	if (drift < -6 || drift > 6) {
+		comp_warn(dev, "Too much/unreasonable UAOL feedback freq value: %d, drift: %d", freq, drift);
+		return;
+	}
+
+	dd->uaol_feedback_drift = drift;
+	if (dd->uaol_feedback_drift > 0)
+		esrc_set_rate(&dd->esrc, dd->ipc_config.sampling_frequency, freq);
+}
+
+static void adjust_uaol_rate(struct comp_dev *dev, const struct dai_data *dd, bool increase)
+{
+	const struct device *uaol_zdev = get_uaol_zdevice(dd->uaol_link_id);
+	int ret = uaol_adjust_rate(uaol_zdev, dd->uaol_stream_id, increase);
+
+	if (ret != 0)
+		comp_err(dev, "Failed to adjust UAOL rate: %d", ret);
 }
 
 /* this is called by DMA driver every time descriptor has completed */
@@ -393,7 +430,7 @@ dai_dma_cb(struct dai_data *dd, struct comp_dev *dev, uint32_t bytes,
 		struct comp_buffer *src_buf = dd->local_buffer;
 		size_t added_frames = 0;
 
-		if (dd->uaol_fb_buf && dd->uaol_fb_chan) {
+		if (dd->uaol_feedback_drift > 0) {
 			buffer_stream_invalidate(dd->local_buffer, bytes);
 
 			struct cir_buf_ptr in = { dd->local_buffer->stream.addr,
@@ -410,6 +447,17 @@ dai_dma_cb(struct dai_data *dd, struct comp_dev *dev, uint32_t bytes,
 			audio_stream_produce(&dd->esrc_buffer->stream, bytes + added_bytes);
 
 			src_buf = dd->esrc_buffer;
+
+			if (added_frames)
+				adjust_uaol_rate(dev, dd, true);
+
+		} else if (dd->uaol_feedback_drift < 0) {
+			assert(dd->uaol_feedback_drift <= -1 && dd->uaol_feedback_drift >= -1000);
+			dd->uaol_ms_since_last_adj++;
+			if (-1000 / dd->uaol_feedback_drift >= dd->uaol_ms_since_last_adj) {
+				dd->uaol_ms_since_last_adj = 0;
+				adjust_uaol_rate(dev, dd, false);
+			}
 		}
 
 		size_t extra_bytes = added_frames * audio_stream_frame_bytes(&dd->dma_buffer->stream);
@@ -1266,6 +1314,9 @@ static int setup_uaol_feedback_dma(struct dai_data *dd, struct comp_dev *dev)
 {
 	struct ipc_config_dai *dai = &dd->ipc_config;
 	struct dma_config *dma_cfg;
+
+	dd->uaol_feedback_drift = 0;
+	dd->uaol_ms_since_last_adj = 0;
 
 	if (dai->type != SOF_DAI_INTEL_UAOL || dai->direction != SOF_IPC_STREAM_PLAYBACK)
 		return 0;
