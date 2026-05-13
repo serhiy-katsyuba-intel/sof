@@ -17,6 +17,7 @@ void esrc_set_rate(struct esrc *esrc, uint32_t in_rate, uint32_t out_rate)
 {
     if (out_rate > in_rate) {
         esrc->max_phase = ((uint64_t)in_rate << 32) / (out_rate - in_rate);
+        esrc->phase_acc = 0;
         memset(esrc->previous_sample_norm, 0, sizeof(esrc->previous_sample_norm));
     } else {
         assert(out_rate == in_rate);
