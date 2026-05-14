@@ -113,6 +113,24 @@ typedef int (*channel_copy_func)(const struct audio_stream *src, unsigned int sr
 				 struct audio_stream *dst, unsigned int dst_channel,
 				 unsigned int frames);
 
+/* TODO: consider to move some UAOL header file???!!! */
+struct uaol_dai_data {
+	/* Frequency drift in Hz. From -6 to 6. */
+	int feedback_drift;
+	uint32_t ms_since_last_adjustment;
+
+	struct dma_chan_data *feedback_chan;
+	uint32_t *feedback_buf;
+	size_t feedback_buf_size;
+	struct dma_config *z_config_feedback;
+
+	struct esrc esrc;
+	struct comp_buffer *esrc_buffer;
+
+	int link_id;
+	int stream_id;
+};
+
 /**
  * \brief DAI runtime data
  */
@@ -147,19 +165,7 @@ struct dai_data {
 
 	uint64_t wallclock;			/* wall clock at stream start */
 
-	/* TODO: perhaps add some UAOL ifdef ???
-	 * Perhaps encapsulate this is a separate struct uaol uaol; ???
-	 */
-	int uaol_feedback_drift;
-	uint32_t uaol_ms_since_last_adj;
-	struct dma_chan_data *uaol_fb_chan;
-	uint32_t *uaol_fb_buf;
-	size_t uaol_fb_buf_size;
-	struct dma_config *z_config_uaol_fb;
-	struct esrc esrc;
-	struct comp_buffer *esrc_buffer;
-	int uaol_link_id;
-	int uaol_stream_id;
+	struct uaol_dai_data uaol;
 
 	/*
 	 * flag indicating two-step stop/pause for DAI comp and DAI DMA.

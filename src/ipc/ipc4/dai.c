@@ -186,7 +186,7 @@ int ipc_dai_data_config(struct dai_data *dd, struct comp_dev *dev)
 		break;
 #ifdef CONFIG_DAI_INTEL_UAOL
 	case SOF_DAI_INTEL_UAOL:
-		dai_get_uaol_stream_id(dd->dai, &dd->uaol_link_id, &dd->uaol_stream_id);
+		dai_get_uaol_stream_id(dd->dai, &dd->uaol.link_id, &dd->uaol.stream_id);
 		break;
 #endif
 	default:
@@ -246,11 +246,11 @@ void dai_dma_release(struct dai_data *dd, struct comp_dev *dev)
 		dd->chan_index = -EINVAL;
 	}
 
-	if (dd->uaol_fb_chan) {
-		dma_stop(dd->uaol_fb_chan->dma->z_dev, dd->uaol_fb_chan->index);
-		dma_release_channel(dd->uaol_fb_chan->dma->z_dev, dd->uaol_fb_chan->index);
-		dd->uaol_fb_chan->dev_data = NULL;
-		dd->uaol_fb_chan = NULL;
+	if (dd->uaol.feedback_chan) {
+		dma_stop(dd->uaol.feedback_chan->dma->z_dev, dd->uaol.feedback_chan->index);
+		dma_release_channel(dd->uaol.feedback_chan->dma->z_dev, dd->uaol.feedback_chan->index);
+		dd->uaol.feedback_chan->dev_data = NULL;
+		dd->uaol.feedback_chan = NULL;
 	}
 }
 
