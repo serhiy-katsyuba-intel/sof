@@ -191,7 +191,6 @@ ZTEST(dsrc_suite, test_48000_48007_1ms_chunks)
 
 ZTEST(dsrc_suite, test_file_48000_48000)
 {
-	/* FIXME: is the path OK to be used with Twister? */
 	int n = read_data_from_file("../test_input.txt", in_buf, NUM_SAMPLES);
 	zassert_true(n > 0, "failed to read test input data");
 
