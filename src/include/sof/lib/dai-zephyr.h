@@ -28,7 +28,9 @@
 #include <sof/ipc/topology.h>
 #include <sof/audio/pcm_converter.h>
 #include <sof/audio/ipc-config.h>
+#ifdef CONFIG_DAI_INTEL_UAOL
 #include <sof/audio/dsrc.h>
+#endif
 #include <ipc/dai.h>
 #include <errno.h>
 #include <stddef.h>
@@ -113,23 +115,25 @@ typedef int (*channel_copy_func)(const struct audio_stream *src, unsigned int sr
 				 struct audio_stream *dst, unsigned int dst_channel,
 				 unsigned int frames);
 
-/* TODO: consider to move some UAOL header file???!!! */
+/* TODO: consider to move this into some UAOL header file? */
+#ifdef CONFIG_DAI_INTEL_UAOL
 struct uaol_dai_data {
-	/* Frequency drift in Hz. From -6 to 6. */
+	/* Diff between UAOL endpoint feedback freq and audio format freq. In Hz. From -6 to 6. */
 	int feedback_drift;
 	uint32_t ms_since_last_adjustment;
 
 	struct dma_chan_data *feedback_chan;
-	uint32_t *feedback_buf;
-	size_t feedback_buf_size;
-	struct dma_config *z_config_feedback;
+	uint32_t *feedback_dma_buf;
+	size_t feedback_dma_buf_size;
+	struct dma_config *feedback_z_config;
 
 	struct dsrc dsrc;
-	struct comp_buffer *dsrc_buffer;
+	struct comp_buffer *dsrc_buf;
 
 	int link_id;
 	int stream_id;
 };
+#endif
 
 /**
  * \brief DAI runtime data
@@ -165,7 +169,9 @@ struct dai_data {
 
 	uint64_t wallclock;			/* wall clock at stream start */
 
+#ifdef CONFIG_DAI_INTEL_UAOL
 	struct uaol_dai_data uaol;
+#endif
 
 	/*
 	 * flag indicating two-step stop/pause for DAI comp and DAI DMA.

@@ -246,12 +246,14 @@ void dai_dma_release(struct dai_data *dd, struct comp_dev *dev)
 		dd->chan_index = -EINVAL;
 	}
 
+#ifdef CONFIG_DAI_INTEL_UAOL
 	if (dd->uaol.feedback_chan) {
 		dma_stop(dd->uaol.feedback_chan->dma->z_dev, dd->uaol.feedback_chan->index);
 		dma_release_channel(dd->uaol.feedback_chan->dma->z_dev, dd->uaol.feedback_chan->index);
 		dd->uaol.feedback_chan->dev_data = NULL;
 		dd->uaol.feedback_chan = NULL;
 	}
+#endif
 }
 
 void dai_release_llp_slot(struct dai_data *dd)
