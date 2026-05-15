@@ -5,23 +5,23 @@
 
 #include <rtos/string.h>
 #include <sof/audio/audio_stream.h>
-#include <sof/audio/esrc.h>
+#include <sof/audio/dsrc.h>
 
-void esrc_init(struct esrc *esrc, size_t channels)
+void dsrc_init(struct dsrc *dsrc, size_t channels)
 {
-	memset(esrc, 0, sizeof(*esrc));
-	esrc->channels = channels;
+	memset(dsrc, 0, sizeof(*dsrc));
+	dsrc->channels = channels;
 }
 
-void esrc_set_rate(struct esrc *esrc, uint32_t in_rate, uint32_t out_rate)
+void dsrc_set_rate(struct dsrc *dsrc, uint32_t in_rate, uint32_t out_rate)
 {
     if (out_rate > in_rate) {
-        esrc->max_phase = ((uint64_t)in_rate << 32) / (out_rate - in_rate);
-        esrc->phase_acc = 0;
-        memset(esrc->previous_sample_norm, 0, sizeof(esrc->previous_sample_norm));
+        dsrc->max_phase = ((uint64_t)in_rate << 32) / (out_rate - in_rate);
+        dsrc->phase_acc = 0;
+        memset(dsrc->previous_sample_norm, 0, sizeof(dsrc->previous_sample_norm));
     } else {
         assert(out_rate == in_rate);
-        esrc->max_phase = 0;
+        dsrc->max_phase = 0;
     }
 }
 
@@ -35,13 +35,13 @@ Hi-Speed feedback frequency precision is also 1 Hz (or max 1/8 = 0.125 Hz if 16 
 Audio data is 32 bit.
 */
 
-size_t esrc_process(struct esrc *esrc, const struct cir_buf_ptr *in,
+size_t dsrc_process(struct dsrc *dsrc, const struct cir_buf_ptr *in,
 		  struct cir_buf_ptr *out, size_t frames)
 {
-    if (esrc->max_phase == 0) {
+    if (dsrc->max_phase == 0) {
         /* No resampling needed, just copy the data */
         cir_buf_copy(in->ptr, in->buf_start, in->buf_end, out->ptr,
-		  out->buf_start, out->buf_end, sizeof(int32_t) * esrc->channels * frames);
+		  out->buf_start, out->buf_end, sizeof(int32_t) * dsrc->channels * frames);
 
           return 0;
     }
@@ -50,23 +50,23 @@ size_t esrc_process(struct esrc *esrc, const struct cir_buf_ptr *in,
     int32_t *out_ptr = out->ptr;
     size_t added_frames = 0;
 
-    /* we need esrc->max_phase to be uint64_t to keep precision when doing esrc->phase_acc rollover.
+    /* we need dsrc->max_phase to be uint64_t to keep precision when doing dsrc->phase_acc rollover.
      * But we need max_phase_32 to be uint32_t to avoid overflow during multiplication.
      */
-    uint32_t max_phase_32 = esrc->max_phase >> 32;
+    uint32_t max_phase_32 = dsrc->max_phase >> 32;
 
 	while (frames--) {
         /* Same comment about precision as above for max_phase_32 applies here */
-        uint32_t phase_acc_32 = esrc->phase_acc >> 32;
+        uint32_t phase_acc_32 = dsrc->phase_acc >> 32;
 
-        for (size_t ch = 0; ch < esrc->channels; ch++) {
+        for (size_t ch = 0; ch < dsrc->channels; ch++) {
             in_ptr = cir_buf_wrap(in_ptr, in->buf_start, in->buf_end);
             out_ptr = cir_buf_wrap(out_ptr, out->buf_start, out->buf_end);
 
             int64_t sample_norm = ((int64_t)*in_ptr << 32) / max_phase_32;
 
-            int64_t previous_sample_norm = esrc->previous_sample_norm[ch];
-            esrc->previous_sample_norm[ch] = sample_norm;
+            int64_t previous_sample_norm = dsrc->previous_sample_norm[ch];
+            dsrc->previous_sample_norm[ch] = sample_norm;
 
             *out_ptr = (sample_norm * (max_phase_32 - phase_acc_32) + previous_sample_norm * phase_acc_32) >> 32;
 
@@ -74,17 +74,17 @@ size_t esrc_process(struct esrc *esrc, const struct cir_buf_ptr *in,
             out_ptr++;
         }
 
-        esrc->phase_acc += (uint64_t)1 << 32;
+        dsrc->phase_acc += (uint64_t)1 << 32;
 
-        if (esrc->phase_acc >= esrc->max_phase) {
-            esrc->phase_acc -= esrc->max_phase;
+        if (dsrc->phase_acc >= dsrc->max_phase) {
+            dsrc->phase_acc -= dsrc->max_phase;
             added_frames++;
 
             /* Insert new frame here */
-            for (size_t ch = 0; ch < esrc->channels; ch++) {
+            for (size_t ch = 0; ch < dsrc->channels; ch++) {
                 out_ptr = cir_buf_wrap(out_ptr, out->buf_start, out->buf_end);
 
-                *out_ptr = (esrc->previous_sample_norm[ch] * max_phase_32) >> 32;
+                *out_ptr = (dsrc->previous_sample_norm[ch] * max_phase_32) >> 32;
 
                 out_ptr++;
             }

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20.0)
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-project(test_esrc)
+project(test_dsrc)
 
 set(SOF_ROOT "${PROJECT_SOURCE_DIR}/../../../..")
 
@@ -21,8 +21,8 @@ target_compile_definitions(app PRIVATE
 )
 
 target_sources(app PRIVATE
-	test_esrc_ztest.c
-	${SOF_ROOT}/src/audio/esrc.c
+	test_dsrc_ztest.c
+	${SOF_ROOT}/src/audio/dsrc.c
 )
 
 # Add RELATIVE_FILE definitions for SOF trace functionality

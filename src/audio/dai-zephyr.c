@@ -347,7 +347,7 @@ static void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 
 	dd->uaol.feedback_drift = drift;
 	if (dd->uaol.feedback_drift > 0)
-		esrc_set_rate(&dd->uaol.esrc, dd->ipc_config.sampling_frequency, freq);
+		dsrc_set_rate(&dd->uaol.dsrc, dd->ipc_config.sampling_frequency, freq);
 }
 
 static void adjust_uaol_rate(struct comp_dev *dev, const struct dai_data *dd, bool increase)
@@ -370,22 +370,22 @@ static int uaol_dma_buffer_copy_to(struct dai_data *dd, size_t bytes)
 
 		struct cir_buf_ptr in = { dd->local_buffer->stream.addr,
 			dd->local_buffer->stream.end_addr, dd->local_buffer->stream.r_ptr };
-		assert(dd->uaol.esrc_buffer);
-		struct cir_buf_ptr out = { dd->uaol.esrc_buffer->stream.addr,
-			dd->uaol.esrc_buffer->stream.end_addr, dd->uaol.esrc_buffer->stream.w_ptr };
+		assert(dd->uaol.dsrc_buffer);
+		struct cir_buf_ptr out = { dd->uaol.dsrc_buffer->stream.addr,
+			dd->uaol.dsrc_buffer->stream.end_addr, dd->uaol.dsrc_buffer->stream.w_ptr };
 		size_t frames = bytes / audio_stream_frame_bytes(&dd->local_buffer->stream);
 
-		size_t added_frames = esrc_process(&dd->uaol.esrc, &in, &out, frames);
+		size_t added_frames = dsrc_process(&dd->uaol.dsrc, &in, &out, frames);
 		size_t added_bytes = added_frames * audio_stream_frame_bytes(&dd->local_buffer->stream);
 
 		comp_update_buffer_consume(dd->local_buffer, bytes);
-		audio_stream_produce(&dd->uaol.esrc_buffer->stream, bytes + added_bytes);
+		audio_stream_produce(&dd->uaol.dsrc_buffer->stream, bytes + added_bytes);
 
 		if (added_frames)
 			adjust_uaol_rate(dev, dd, true);
 
 		size_t extra_bytes = added_frames * audio_stream_frame_bytes(&dd->dma_buffer->stream);
-		ret = dma_buffer_copy_to(dd->uaol.esrc_buffer, dd->dma_buffer,
+		ret = dma_buffer_copy_to(dd->uaol.dsrc_buffer, dd->dma_buffer,
 				 dd->process, bytes + extra_bytes, dd->chmap);
 	} else if (dd->uaol.feedback_drift < 0) {
 		assert(dd->uaol.feedback_drift <= -1 && dd->uaol.feedback_drift >= -1000);
@@ -795,9 +795,9 @@ __cold void dai_common_free(struct dai_data *dd)
 		dd->uaol.feedback_buf_size = 0;
 	}
 
-	if (dd->uaol.esrc_buffer) {
-		buffer_free(dd->uaol.esrc_buffer);
-		dd->uaol.esrc_buffer = NULL;
+	if (dd->uaol.dsrc_buffer) {
+		buffer_free(dd->uaol.dsrc_buffer);
+		dd->uaol.dsrc_buffer = NULL;
 	}
 
 }
@@ -1284,19 +1284,19 @@ int dai_common_params(struct dai_data *dd, struct comp_dev *dev,
 		goto out;
 	}
 
-	/* create esrc output buffer (if needed) */
+	/* create dsrc output buffer (if needed) */
 	if (dd->ipc_config.type == SOF_DAI_INTEL_UAOL && dd->ipc_config.direction == SOF_IPC_STREAM_PLAYBACK) {
-		/* esrc may add 1 extra frame as a result of interpolation, esrc only works with 32-bit data */
-		size_t esrc_buf_size = (dev->frames + 1) * dd->ipc_config.gtw_fmt->channels_count * 4;
-		dd->uaol.esrc_buffer = buffer_alloc_range(NULL, esrc_buf_size, esrc_buf_size, SOF_MEM_FLAG_USER,
+		/* dsrc may add 1 extra frame as a result of interpolation, dsrc only works with 32-bit data */
+		size_t dsrc_buf_size = (dev->frames + 1) * dd->ipc_config.gtw_fmt->channels_count * 4;
+		dd->uaol.dsrc_buffer = buffer_alloc_range(NULL, dsrc_buf_size, dsrc_buf_size, SOF_MEM_FLAG_USER,
 				    PLATFORM_DCACHE_ALIGN, BUFFER_USAGE_NOT_SHARED);
-		if (!dd->uaol.esrc_buffer) {
-			comp_err(dev, "failed to alloc esrc buffer");
+		if (!dd->uaol.dsrc_buffer) {
+			comp_err(dev, "failed to alloc dsrc buffer");
 			goto out;
 		}
 
 		/* params should be same as local_buffer's */
-		buffer_set_params(dd->uaol.esrc_buffer, &params, BUFFER_UPDATE_FORCE);
+		buffer_set_params(dd->uaol.dsrc_buffer, &params, BUFFER_UPDATE_FORCE);
 	}
 
 out:
@@ -1415,7 +1415,7 @@ static int setup_uaol_feedback_dma(struct dai_data *dd, struct comp_dev *dev)
 	dd->uaol.feedback_chan = &dd->dma->chan[channel];
 	dd->uaol.feedback_chan->dev_data = dd;
 
-	esrc_init(&dd->uaol.esrc, dai->gtw_fmt->channels_count);
+	dsrc_init(&dd->uaol.dsrc, dai->gtw_fmt->channels_count);
 
 	comp_dbg(dev, "New configured UAOL feedback DMA channel index %d", dd->uaol.feedback_chan->index);
 
@@ -1567,9 +1567,9 @@ void dai_common_reset(struct dai_data *dd, struct comp_dev *dev)
 		dd->uaol.feedback_buf_size = 0;
 	}
 
-	if (dd->uaol.esrc_buffer) {
-		buffer_free(dd->uaol.esrc_buffer);
-		dd->uaol.esrc_buffer = NULL;
+	if (dd->uaol.dsrc_buffer) {
+		buffer_free(dd->uaol.dsrc_buffer);
+		dd->uaol.dsrc_buffer = NULL;
 	}
 
 	dd->wallclock = 0;

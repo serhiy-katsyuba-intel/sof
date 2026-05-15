@@ -28,7 +28,7 @@
 #include <sof/ipc/topology.h>
 #include <sof/audio/pcm_converter.h>
 #include <sof/audio/ipc-config.h>
-#include <sof/audio/esrc.h>
+#include <sof/audio/dsrc.h>
 #include <ipc/dai.h>
 #include <errno.h>
 #include <stddef.h>
@@ -124,8 +124,8 @@ struct uaol_dai_data {
 	size_t feedback_buf_size;
 	struct dma_config *z_config_feedback;
 
-	struct esrc esrc;
-	struct comp_buffer *esrc_buffer;
+	struct dsrc dsrc;
+	struct comp_buffer *dsrc_buffer;
 
 	int link_id;
 	int stream_id;

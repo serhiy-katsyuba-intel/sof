@@ -3,8 +3,8 @@
 # Copyright(c) 2026 Intel Corporation. All rights reserved.
 
 tests:
-  sof.unit.esrc:
-    tags: esrc resampling audio
+  sof.unit.dsrc:
+    tags: dsrc resampling audio
     platform_allow: native_sim
     integration_platforms:
       - native_sim

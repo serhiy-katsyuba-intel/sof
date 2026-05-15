@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <zephyr/ztest.h>
 #include <sof/audio/audio_stream.h>
-#include <sof/audio/esrc.h>
+#include <sof/audio/dsrc.h>
 
 /* 200 seconds stereo */
 #define NUM_SAMPLES (48000 * 2 * 200)
@@ -137,39 +137,39 @@ void cir_buf_copy(void *src, void *src_addr, void *src_end, void *dst,
 
 /**************************** Test cases *******************************/
 
-ZTEST(esrc_suite, test_48000_48000)
+ZTEST(dsrc_suite, test_48000_48000)
 {
-	struct esrc esrc;
-	esrc_init(&esrc, 2);
-	esrc_set_rate(&esrc, 48000, 48000);
+	struct dsrc dsrc;
+	dsrc_init(&dsrc, 2);
+	dsrc_set_rate(&dsrc, 48000, 48000);
 
 	struct cir_buf_ptr in = { in_buf, &in_buf[NUM_SAMPLES], in_buf };
 	struct cir_buf_ptr out = { out_buf, &out_buf[NUM_SAMPLES], out_buf };
-	size_t added_frames = esrc_process(&esrc, &in, &out, 48000 * 100);
+	size_t added_frames = dsrc_process(&dsrc, &in, &out, 48000 * 100);
 
 	/* same frequencies: zero added frames expected */
 	zassert_equal(added_frames, 0);
 }
 
-ZTEST(esrc_suite, test_48000_48007)
+ZTEST(dsrc_suite, test_48000_48007)
 {
-	struct esrc esrc;
-	esrc_init(&esrc, 2);
-	esrc_set_rate(&esrc, 48000, 48007);
+	struct dsrc dsrc;
+	dsrc_init(&dsrc, 2);
+	dsrc_set_rate(&dsrc, 48000, 48007);
 
 	struct cir_buf_ptr in = { in_buf, &in_buf[NUM_SAMPLES], in_buf };
 	struct cir_buf_ptr out = { out_buf, &out_buf[NUM_SAMPLES], out_buf };
-	size_t added_frames = esrc_process(&esrc, &in, &out, 48000 * 100);
+	size_t added_frames = dsrc_process(&dsrc, &in, &out, 48000 * 100);
 
 	/* 7 added frames per each input second are expected */
 	zassert_equal(added_frames, 7 * 100);
 }
 
-ZTEST(esrc_suite, test_48000_48007_1ms_chunks)
+ZTEST(dsrc_suite, test_48000_48007_1ms_chunks)
 {
-	struct esrc esrc;
-	esrc_init(&esrc, 2);
-	esrc_set_rate(&esrc, 48000, 48007);
+	struct dsrc dsrc;
+	dsrc_init(&dsrc, 2);
+	dsrc_set_rate(&dsrc, 48000, 48007);
 
 	size_t frames = 48000 * 100;
 	size_t total_added_frames = 0;
@@ -178,7 +178,7 @@ ZTEST(esrc_suite, test_48000_48007_1ms_chunks)
 	struct cir_buf_ptr out = { out_buf, &out_buf[48 * 2 + 2], out_buf };
 
 	while (frames) {
-		size_t added_frames = esrc_process(&esrc, &in, &out, 48);
+		size_t added_frames = dsrc_process(&dsrc, &in, &out, 48);
 		/* with 1 ms chunks and small freq diff, periodically one extra frame is added */
 		zassert_true(added_frames == 0 || added_frames == 1);
 		total_added_frames += added_frames;
@@ -189,19 +189,19 @@ ZTEST(esrc_suite, test_48000_48007_1ms_chunks)
 	zassert_equal(total_added_frames, 7 * 100);
 }
 
-ZTEST(esrc_suite, test_file_48000_48000)
+ZTEST(dsrc_suite, test_file_48000_48000)
 {
 	/* FIXME: is the path OK to be used with Twister? */
 	int n = read_data_from_file("../test_input.txt", in_buf, NUM_SAMPLES);
 	zassert_true(n > 0, "failed to read test input data");
 
-	struct esrc esrc;
-	esrc_init(&esrc, 2);
-	esrc_set_rate(&esrc, 48000, 48000);
+	struct dsrc dsrc;
+	dsrc_init(&dsrc, 2);
+	dsrc_set_rate(&dsrc, 48000, 48000);
 
 	struct cir_buf_ptr in = { in_buf, &in_buf[NUM_SAMPLES], in_buf };
 	struct cir_buf_ptr out = { out_buf, &out_buf[NUM_SAMPLES], out_buf };
-	size_t added_frames = esrc_process(&esrc, &in, &out, n / 2);
+	size_t added_frames = dsrc_process(&dsrc, &in, &out, n / 2);
 
 	/* same frequencies: zero added frames expected */
 	zassert_equal(added_frames, 0);
@@ -214,18 +214,18 @@ ZTEST(esrc_suite, test_file_48000_48000)
 	zassert_equal(diff, 0, "test output differs from expected at line %d", diff);
 }
 
-ZTEST(esrc_suite, test_file_100_102)
+ZTEST(dsrc_suite, test_file_100_102)
 {
 	int n = read_data_from_file("../test_input.txt", in_buf, NUM_SAMPLES);
 	zassert_true(n > 0, "failed to read test input data");
 
-	struct esrc esrc;
-	esrc_init(&esrc, 1);
-	esrc_set_rate(&esrc, 100, 102);
+	struct dsrc dsrc;
+	dsrc_init(&dsrc, 1);
+	dsrc_set_rate(&dsrc, 100, 102);
 
 	struct cir_buf_ptr in = { in_buf, &in_buf[NUM_SAMPLES], in_buf };
 	struct cir_buf_ptr out = { out_buf, &out_buf[NUM_SAMPLES], out_buf };
-	size_t added_frames = esrc_process(&esrc, &in, &out, n);
+	size_t added_frames = dsrc_process(&dsrc, &in, &out, n);
 
 	/* 2 added frames per each input second are expected */
 	zassert_equal(added_frames, (double)n / 100 * 2);
@@ -238,4 +238,4 @@ ZTEST(esrc_suite, test_file_100_102)
 	zassert_equal(diff, 0, "test output differs from expected at line %d", diff);
 }
 
-ZTEST_SUITE(esrc_suite, NULL, NULL, NULL, NULL, NULL);
+ZTEST_SUITE(dsrc_suite, NULL, NULL, NULL, NULL, NULL);
