@@ -25,21 +25,15 @@ void dsrc_set_rate(struct dsrc *dsrc, uint32_t in_rate, uint32_t out_rate)
     }
 }
 
-/*
-phase_acc and max_phase should have great fractional precision hence uint64_t and << 32 (as we do not use float or double).
-Phase increment is just 1 (i.e. 1 << 32).
-
-Full-Speed feedback freaquency precision is 1 Hz (or max 1/16 = 0.0625 Hz if 14 bits fractional part is used)
-Hi-Speed feedback frequency precision is also 1 Hz (or max 1/8 = 0.125 Hz if 16 bits fractional part is used)
-
-Audio data is 32 bit.
-*/
-
+/* phase_acc and max_phase use uint64_t with << 32 to achieve high fractional precision
+ * without using floating-point arithmetic. The phase increment is 1 (i.e., 1 << 32).
+ * Frequency precision is 1 Hz. Audio data is 32-bit.
+ */
 size_t dsrc_process(struct dsrc *dsrc, const struct cir_buf_ptr *in,
 		  struct cir_buf_ptr *out, size_t frames)
 {
     if (dsrc->max_phase == 0) {
-        /* No resampling needed, just copy the data */
+        /* No resampling needed, just copy the data. */
         cir_buf_copy(in->ptr, in->buf_start, in->buf_end, out->ptr,
 		  out->buf_start, out->buf_end, sizeof(int32_t) * dsrc->channels * frames);
 
@@ -50,13 +44,14 @@ size_t dsrc_process(struct dsrc *dsrc, const struct cir_buf_ptr *in,
     int32_t *out_ptr = out->ptr;
     size_t added_frames = 0;
 
-    /* we need dsrc->max_phase to be uint64_t to keep precision when doing dsrc->phase_acc rollover.
-     * But we need max_phase_32 to be uint32_t to avoid overflow during multiplication.
+    /* Two different data types are needed: dsrc->max_phase must be 64 bits to maintain
+     * precision when calculating dsrc->phase_acc rollover, but max_phase_32 must be 32 bits
+     * to prevent overflow during multiplication.
      */
     uint32_t max_phase_32 = dsrc->max_phase >> 32;
 
 	while (frames--) {
-        /* Same comment about precision as above for max_phase_32 applies here */
+        /* Same precision considerations as max_phase_32 above apply here. */
         uint32_t phase_acc_32 = dsrc->phase_acc >> 32;
 
         for (size_t ch = 0; ch < dsrc->channels; ch++) {
@@ -68,7 +63,8 @@ size_t dsrc_process(struct dsrc *dsrc, const struct cir_buf_ptr *in,
             int64_t previous_sample_norm = dsrc->previous_sample_norm[ch];
             dsrc->previous_sample_norm[ch] = sample_norm;
 
-            *out_ptr = (sample_norm * (max_phase_32 - phase_acc_32) + previous_sample_norm * phase_acc_32) >> 32;
+            *out_ptr = (sample_norm * (max_phase_32 - phase_acc_32) +
+                previous_sample_norm * phase_acc_32) >> 32;
 
             in_ptr++;
             out_ptr++;

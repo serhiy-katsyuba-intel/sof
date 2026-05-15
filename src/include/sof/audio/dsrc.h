@@ -8,6 +8,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <sof/platform.h>
 
 /// TODO: move it later to a more generic header!!!
 struct cir_buf_ptr {
@@ -18,7 +19,7 @@ struct cir_buf_ptr {
 
 struct dsrc {
 	size_t channels;
-	int64_t previous_sample_norm[8];
+	int64_t previous_sample_norm[PLATFORM_MAX_CHANNELS];
 	uint64_t phase_acc;
 	uint64_t max_phase;
 };
