@@ -41,7 +41,7 @@ size_t dsrc_process(struct dsrc *dsrc, const struct cir_buf_ptr *in,
 		return 0;
 	}
 
-	const int32_t *in_ptr = in->ptr;
+	int32_t *in_ptr = in->ptr;
 	int32_t *out_ptr = out->ptr;
 	size_t added_frames = 0;
 
