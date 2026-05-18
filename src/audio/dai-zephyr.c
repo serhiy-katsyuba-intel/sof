@@ -46,6 +46,9 @@
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/dai.h>
+#ifdef CONFIG_DAI_INTEL_UAOL
+#include <zephyr/drivers/uaol.h>
+#endif
 
 #include <sof/debug/telemetry/performance_monitor.h>
 
@@ -359,13 +362,13 @@ static void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 		dsrc_set_rate(&dd->uaol.dsrc, dd->ipc_config.sampling_frequency, freq);
 }
 
-static void adjust_uaol_rate(struct comp_dev *dev, const struct dai_data *dd, bool increase)
+static void adjust_uaol_rate(const struct dai_data *dd, bool increase)
 {
 	const struct device *uaol_zdev = get_uaol_zdevice(dd->uaol.link_id);
 	int ret = uaol_adjust_rate(uaol_zdev, dd->uaol.stream_id, increase);
 
 	if (ret != 0)
-		comp_err(dev, "Failed to adjust UAOL rate: %d", ret);
+		comp_err(dd->dai_dev, "Failed to adjust UAOL rate: %d", ret);
 }
 
 static int uaol_dma_buffer_copy_to(struct dai_data *dd, size_t bytes)
@@ -391,7 +394,7 @@ static int uaol_dma_buffer_copy_to(struct dai_data *dd, size_t bytes)
 		audio_stream_produce(&dd->uaol.dsrc_buf->stream, bytes + added_bytes);
 
 		if (added_frames)
-			adjust_uaol_rate(dev, dd, true);
+			adjust_uaol_rate(dd, true);
 
 		size_t extra_bytes = added_frames * audio_stream_frame_bytes(&dd->dma_buffer->stream);
 		ret = dma_buffer_copy_to(dd->uaol.dsrc_buf, dd->dma_buffer,
@@ -401,7 +404,7 @@ static int uaol_dma_buffer_copy_to(struct dai_data *dd, size_t bytes)
 		dd->uaol.ms_since_last_adjustment++;
 		if (-1000 / dd->uaol.feedback_drift >= dd->uaol.ms_since_last_adjustment) {
 			dd->uaol.ms_since_last_adjustment = 0;
-			adjust_uaol_rate(dev, dd, false);
+			adjust_uaol_rate(dd, false);
 		}
 
 		ret = dma_buffer_copy_to(dd->local_buffer, dd->dma_buffer,
