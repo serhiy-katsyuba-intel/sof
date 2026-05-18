@@ -318,16 +318,25 @@ static void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 		return;
 	}
 
-	//TODO: REDO!!! use write_position maybe ???: we should read last 4 bytes, not current 4 bytes !!!
-	uint32_t feedback_value = dd->uaol.feedback_dma_buf[stat.read_position / 4];
+	/* Use uncached pointer to read DMA buffer */
+	assert(is_uncached(dd->uaol.feedback_dma_buf));
 
-	ret = sof_dma_reload(dd->uaol.feedback_chan->dma, dd->uaol.feedback_chan->index, 4);
+	/* NOTE: Not all DMA drivers populate stat.write_position. Intel ACE HDA does. */
+	assert(stat.write_position & 3 == 0);	/* 4-byte alignment check. */
+	/* Read the last received 4 bytes (ignore older ones if any). */
+	int last_4_bytes_pos = stat.write_position >= 4 ? (stat.write_position - 4) :
+		(dd->uaol.feedback_dma_buf_size - 4);
+	uint32_t feedback_value = dd->uaol.feedback_dma_buf[last_4_bytes_pos / 4];
+
+	ret = sof_dma_reload(dd->uaol.feedback_chan->dma, dd->uaol.feedback_chan->index,
+			 stat.pending_length);
 	if (ret < 0) {
-		comp_err(dev, "Failed to reload UAOL feedback DMA: %d", ret);
+		comp_err(dev, "Failed to reload UAOL feedback DMA: %d, pending_length: %d",
+		 ret, stat.pending_length);
 		return;
 	}
 
-	comp_info(dev, "UAOL feedback value: %u", feedback_value);
+	comp_dbg(dev, "UAOL feedback value: %u", feedback_value);
 
 	const struct device *uaol_zdev = get_uaol_zdevice(dd->uaol.link_id);
 	int freq = uaol_interpret_feedback_value(uaol_zdev, dd->uaol.stream_id, feedback_value);
