@@ -299,11 +299,11 @@ int dai_get_uaol_stream_id(struct dai *dai, int *uaol_link_id, int *uaol_stream_
 
 static void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 {
-	assert(dd && dd->uaol.feedback_chan && dd->uaol.feedback_dma_buf);
+	assert(dd && dd->uaol.feedback_chan_idx >= 0 && dd->uaol.feedback_dma_buf);
 	///assert(dev->direction == SOF_IPC_STREAM_PLAYBACK);
 
 	struct dma_status stat = {0};
-	int ret = sof_dma_get_status(dd->uaol.feedback_chan->dma, dd->uaol.feedback_chan->index, &stat);
+	int ret = sof_dma_get_status(dd->dma, dd->uaol.feedback_chan_idx, &stat);
 	if (ret) {
 		comp_err(dev, "Failed to get UAOL feedback DMA status: %d", ret);
 		return;
@@ -331,8 +331,7 @@ static void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 		(dd->uaol.feedback_dma_buf_size - 4);
 	uint32_t feedback_value = dd->uaol.feedback_dma_buf[last_4_bytes_pos / 4];
 
-	ret = sof_dma_reload(dd->uaol.feedback_chan->dma, dd->uaol.feedback_chan->index,
-			 stat.pending_length);
+	ret = sof_dma_reload(dd->dma, dd->uaol.feedback_chan_idx, stat.pending_length);
 	if (ret < 0) {
 		comp_err(dev, "Failed to reload UAOL feedback DMA: %d, pending_length: %d",
 		 ret, stat.pending_length);
@@ -572,7 +571,7 @@ dai_dma_cb(struct dai_data *dd, struct comp_dev *dev, uint32_t bytes,
 		dd->total_data_processed += bytes;
 	}
 
-	if (dd->uaol.feedback_dma_buf && dd->uaol.feedback_chan) {
+	if (dd->uaol.feedback_dma_buf && dd->uaol.feedback_chan_idx >= 0) {
 		process_uaol_feedback(dev, dd);
 	}
 
@@ -781,10 +780,9 @@ __cold void dai_common_free(struct dai_data *dd)
 		dd->chan_index = -EINVAL;
 	}
 
-	if (dd->uaol.feedback_chan) {
-		sof_dma_release_channel(dd->dma, dd->uaol.feedback_chan->index);
-		dd->uaol.feedback_chan->dev_data = NULL;
-		dd->uaol.feedback_chan = NULL;
+	if (dd->uaol.feedback_chan_idx >= 0) {
+		sof_dma_release_channel(dd->dma, dd->uaol.feedback_chan_idx);
+		dd->uaol.feedback_chan_idx = -EINVAL;
 	}
 
 	sof_dma_put(dd->dma);
@@ -1341,6 +1339,7 @@ static int setup_uaol_feedback_dma(struct dai_data *dd, struct comp_dev *dev)
 	struct ipc_config_dai *dai = &dd->ipc_config;
 	struct dma_config *dma_cfg;
 
+	dd->uaol.feedback_chan_idx = -EINVAL;
 	dd->uaol.feedback_drift = 0;
 	dd->uaol.ms_since_last_adjustment = 0;
 
@@ -1413,23 +1412,19 @@ static int setup_uaol_feedback_dma(struct dai_data *dd, struct comp_dev *dev)
 	dd->uaol.feedback_z_config = dma_cfg;
 
 	/* get DMA channel */
-	channel = sof_dma_request_channel(dd->dma, channel);
-	if (channel < 0) {
+	dd->uaol.feedback_chan_idx = sof_dma_request_channel(dd->dma, channel);
+	if (dd->uaol.feedback_chan_idx < 0) {
 		rfree(dma_cfg->head_block);
 		rfree(dma_cfg);
 		rfree(dd->uaol.feedback_dma_buf);
 		dd->uaol.feedback_dma_buf = NULL;
-		dd->uaol.feedback_chan = NULL;
 		comp_err(dev, "dma_request_channel() failed");
 		return -EIO;
 	}
 
-	dd->uaol.feedback_chan = &dd->dma->chan[channel];
-	dd->uaol.feedback_chan->dev_data = dd;
-
 	dsrc_init(&dd->uaol.dsrc, dai->gtw_fmt->channels_count);
 
-	comp_dbg(dev, "New configured UAOL feedback DMA channel index %d", dd->uaol.feedback_chan->index);
+	comp_dbg(dev, "New configured UAOL feedback DMA channel index %d", dd->uaol.feedback_chan_idx);
 
 	return 0;
 }
@@ -1514,8 +1509,8 @@ int dai_common_prepare(struct dai_data *dd, struct comp_dev *dev)
 	if (ret < 0)
 		comp_set_state(dev, COMP_TRIGGER_RESET);
 
-	if (dd->uaol.feedback_chan) {
-		ret = sof_dma_config(dd->uaol.feedback_chan->dma, dd->uaol.feedback_chan->index, dd->uaol.feedback_z_config);
+	if (dd->uaol.feedback_chan_idx >= 0) {
+		ret = sof_dma_config(dd->dma, dd->uaol.feedback_chan_idx, dd->uaol.feedback_z_config);
 		if (ret < 0)
 			comp_set_state(dev, COMP_TRIGGER_RESET);
 	}
@@ -1624,8 +1619,8 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
 			if (ret < 0)
 				return ret;
 
-			if (dd->uaol.feedback_chan) {
-				ret = sof_dma_start(dd->uaol.feedback_chan->dma, dd->uaol.feedback_chan->index);
+			if (dd->uaol.feedback_chan_idx >= 0) {
+				ret = sof_dma_start(dd->dma, dd->uaol.feedback_chan_idx);
 				if (ret < 0)
 					return ret;
 			}
@@ -1670,8 +1665,8 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
 			if (ret < 0)
 				return ret;
 
-			if (dd->uaol.feedback_chan) {
-				ret = sof_dma_stop(dd->uaol.feedback_chan->dma, dd->uaol.feedback_chan->index);
+			if (dd->uaol.feedback_chan_idx >= 0) {
+				ret = sof_dma_stop(dd->dma, dd->uaol.feedback_chan_idx);
 				if (ret < 0)
 					return ret;
 			}
@@ -1681,8 +1676,8 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
 			if (ret < 0)
 				return ret;
 
-			if (dd->uaol.feedback_z_config && dd->uaol.feedback_chan) {
-				ret = sof_dma_config(dd->uaol.feedback_chan->dma, dd->uaol.feedback_chan->index, dd->uaol.feedback_z_config);
+			if (dd->uaol.feedback_z_config && dd->uaol.feedback_chan_idx >= 0) {
+				ret = sof_dma_config(dd->dma, dd->uaol.feedback_chan_idx, dd->uaol.feedback_z_config);
 				if (ret < 0)
 					return ret;
 			}
@@ -1691,8 +1686,8 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
 			if (ret < 0)
 				return ret;
 
-			if (dd->uaol.feedback_chan) {
-				ret = sof_dma_start(dd->uaol.feedback_chan->dma, dd->uaol.feedback_chan->index);
+			if (dd->uaol.feedback_chan_idx >= 0) {
+				ret = sof_dma_start(dd->dma, dd->uaol.feedback_chan_idx);
 				if (ret < 0)
 					return ret;
 			}
@@ -1722,8 +1717,8 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
  */
 #if CONFIG_COMP_DAI_STOP_TRIGGER_ORDER_REVERSE
 		ret = sof_dma_stop(dd->dma, dd->chan_index);
-		if (dd->uaol.feedback_chan) {
-			ret = sof_dma_stop(dd->uaol.feedback_chan->dma, dd->uaol.feedback_chan->index);
+		if (dd->uaol.feedback_chan_idx >= 0) {
+			ret = sof_dma_stop(dd->dma, dd->uaol.feedback_chan_idx);
 		}
 		dai_trigger_op(dd->dai, cmd, dev->direction);
 #else
@@ -1734,8 +1729,8 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
 			ret = 0;
 		}
 
-		if (dd->uaol.feedback_chan) {
-			ret = sof_dma_stop(dd->uaol.feedback_chan->dma, dd->uaol.feedback_chan->index);
+		if (dd->uaol.feedback_chan_idx >= 0) {
+			ret = sof_dma_stop(dd->dma, dd->uaol.feedback_chan_idx);
 			if (ret) {
 				comp_warn(dev, "UAOL feedback dma was stopped earlier");
 				ret = 0;
@@ -1747,15 +1742,15 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
 		comp_dbg(dev, "PAUSE");
 #if CONFIG_COMP_DAI_STOP_TRIGGER_ORDER_REVERSE
 		ret = sof_dma_suspend(dd->dma, dd->chan_index);
-		if (dd->uaol.feedback_chan) {
-			ret = sof_dma_suspend(dd->uaol.feedback_chan->dma, dd->uaol.feedback_chan->index);
+		if (dd->uaol.feedback_chan_idx >= 0) {
+			ret = sof_dma_suspend(dd->dma, dd->uaol.feedback_chan_idx);
 		}
 		dai_trigger_op(dd->dai, cmd, dev->direction);
 #else
 		dai_trigger_op(dd->dai, cmd, dev->direction);
 		ret = sof_dma_suspend(dd->dma, dd->chan_index);
-		if (dd->uaol.feedback_chan) {
-			ret = sof_dma_suspend(dd->uaol.feedback_chan->dma, dd->uaol.feedback_chan->index);
+		if (dd->uaol.feedback_chan_idx >= 0) {
+			ret = sof_dma_suspend(dd->dma, dd->uaol.feedback_chan_idx);
 		}
 #endif
 		break;
