@@ -118,7 +118,9 @@ typedef int (*channel_copy_func)(const struct audio_stream *src, unsigned int sr
 /* TODO: consider to move this into some UAOL header file? */
 #ifdef CONFIG_DAI_INTEL_UAOL
 struct uaol_dai_data {
-	/* Diff between UAOL endpoint feedback freq and audio format freq. In Hz. From -6 to 6. */
+	/* Diff between feedback freq read from UAOL endpoint and audio
+	 * format freq. In Hz. From -MAX_UAOL_DRIFT_HZ to MAX_UAOL_DRIFT_HZ.
+	 */
 	int feedback_drift;
 	uint32_t ms_since_last_adjustment;
 

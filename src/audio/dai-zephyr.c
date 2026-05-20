@@ -348,10 +348,13 @@ static void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 		return;
 	}
 
-	/* sanity check if received data looks like a valid clock ??? */
-	/* limit drift to -6 .. 6 Hz range !!! */
+	/* Let's limit the maximum drift to a reasonable value to prevent significant audio distortion
+	 * when, for some reason, the reported drift is quite big.
+	 */
+	#define MAX_UAOL_DRIFT_HZ 6
+
 	int drift = freq - dd->ipc_config.sampling_frequency;
-	if (drift < -6 || drift > 6) {
+	if (drift < -MAX_UAOL_DRIFT_HZ || drift > MAX_UAOL_DRIFT_HZ) {
 		comp_warn(dev, "Too much/unreasonable UAOL feedback freq value: %d, drift: %d", freq, drift);
 		return;
 	}
