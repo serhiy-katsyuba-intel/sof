@@ -784,6 +784,26 @@ static int dai_dma_suspend(struct dai_data *dd)
 	return ret;
 }
 
+static void uaol_free(struct dai_data *dd)
+{
+	if (dd->uaol.fb_z_config) {
+		rfree(dd->uaol.fb_z_config->head_block);
+		rfree(dd->uaol.fb_z_config);
+		dd->uaol.fb_z_config = NULL;
+	}
+
+	if (dd->uaol.fb_dma_buf) {
+		rfree(dd->uaol.fb_dma_buf);
+		dd->uaol.fb_dma_buf = NULL;
+		dd->uaol.fb_dma_buf_size = 0;
+	}
+
+	if (dd->uaol.dsrc_buf) {
+		buffer_free(dd->uaol.dsrc_buf);
+		dd->uaol.dsrc_buf = NULL;
+	}
+}
+
 __cold static struct comp_dev *dai_new(const struct comp_driver *drv,
 				       const struct comp_ipc_config *config,
 				       const void *spec)
@@ -846,23 +866,7 @@ __cold void dai_common_free(struct dai_data *dd)
 
 	rfree(dd->dai_spec_config);
 
-	if (dd->uaol.fb_z_config) {
-		rfree(dd->uaol.fb_z_config->head_block);
-		rfree(dd->uaol.fb_z_config);
-		dd->uaol.fb_z_config = NULL;
-	}
-
-	if (dd->uaol.fb_dma_buf) {
-		rfree(dd->uaol.fb_dma_buf);
-		dd->uaol.fb_dma_buf = NULL;
-		dd->uaol.fb_dma_buf_size = 0;
-	}
-
-	if (dd->uaol.dsrc_buf) {
-		buffer_free(dd->uaol.dsrc_buf);
-		dd->uaol.dsrc_buf = NULL;
-	}
-
+	uaol_free(dd);
 }
 
 __cold static void dai_free(struct comp_dev *dev)
@@ -1609,22 +1613,7 @@ void dai_common_reset(struct dai_data *dd, struct comp_dev *dev)
 		dd->dma_buffer = NULL;
 	}
 
-	if (dd->uaol.fb_z_config) {
-		rfree(dd->uaol.fb_z_config->head_block);
-		rfree(dd->uaol.fb_z_config);
-		dd->uaol.fb_z_config = NULL;
-	}
-
-	if (dd->uaol.fb_dma_buf) {
-		rfree(dd->uaol.fb_dma_buf);
-		dd->uaol.fb_dma_buf = NULL;
-		dd->uaol.fb_dma_buf_size = 0;
-	}
-
-	if (dd->uaol.dsrc_buf) {
-		buffer_free(dd->uaol.dsrc_buf);
-		dd->uaol.dsrc_buf = NULL;
-	}
+	uaol_free(dd);
 
 	dd->wallclock = 0;
 	dd->total_data_processed = 0;
