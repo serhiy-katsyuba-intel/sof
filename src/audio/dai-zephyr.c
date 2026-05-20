@@ -725,6 +725,65 @@ __cold int dai_common_new(struct dai_data *dd, struct comp_dev *dev,
 	return 0;
 }
 
+static void dai_dma_release_channel(struct dai_data *dd)
+{
+	if (dd->chan_index >= 0) {
+		sof_dma_release_channel(dd->dma, dd->chan_index);
+		dd->chan_index = -EINVAL;
+	}
+
+	if (dd->uaol.fb_chan_idx >= 0) {
+		sof_dma_release_channel(dd->dma, dd->uaol.fb_chan_idx);
+		dd->uaol.fb_chan_idx = -EINVAL;
+	}
+}
+
+static int dai_dma_config(struct dai_data *dd)
+{
+	int ret = sof_dma_config(dd->dma, dd->chan_index, dd->z_config);
+	if (ret < 0)
+		return ret;
+
+	if (dd->uaol.fb_chan_idx >= 0)
+		ret = sof_dma_config(dd->dma, dd->uaol.fb_chan_idx, dd->uaol.fb_z_config);
+
+	return ret;
+}
+
+static int dai_dma_start(struct dai_data *dd)
+{
+	int ret = sof_dma_start(dd->dma, dd->chan_index);
+	if (ret < 0)
+		return ret;
+
+	if (dd->uaol.fb_chan_idx >= 0)
+		ret = sof_dma_start(dd->dma, dd->uaol.fb_chan_idx);
+
+	return ret;
+}
+
+static int dai_dma_stop(struct dai_data *dd)
+{
+	int ret = sof_dma_stop(dd->dma, dd->chan_index);
+
+	/* seems it's better to stop feedback even when the above fails */
+	if (dd->uaol.fb_chan_idx >= 0)
+		sof_dma_stop(dd->dma, dd->uaol.fb_chan_idx);
+
+	return ret;
+}
+
+static int dai_dma_suspend(struct dai_data *dd)
+{
+	int ret = sof_dma_suspend(dd->dma, dd->chan_index);
+
+	/* seems it's better to suspend feedback even when the above fails */
+	if (dd->uaol.fb_chan_idx >= 0)
+		sof_dma_suspend(dd->dma, dd->uaol.fb_chan_idx);
+
+	return ret;
+}
+
 __cold static struct comp_dev *dai_new(const struct comp_driver *drv,
 				       const struct comp_ipc_config *config,
 				       const void *spec)
@@ -778,16 +837,7 @@ __cold void dai_common_free(struct dai_data *dd)
 	if (dd->group)
 		dai_group_put(dd->group);
 
-	if (dd->chan_index >= 0) {
-		sof_dma_release_channel(dd->dma, dd->chan_index);
-		dd->chan_index = -EINVAL;
-	}
-
-	if (dd->uaol.fb_chan_idx >= 0) {
-		sof_dma_release_channel(dd->dma, dd->uaol.fb_chan_idx);
-		dd->uaol.fb_chan_idx = -EINVAL;
-	}
-
+	dai_dma_release_channel(dd);
 	sof_dma_put(dd->dma);
 
 	dai_release_llp_slot(dd);
@@ -1508,15 +1558,9 @@ int dai_common_prepare(struct dai_data *dd, struct comp_dev *dev)
 		return 0;
 	}
 
-	ret = sof_dma_config(dd->dma, dd->chan_index, dd->z_config);
+	ret = dai_dma_config(dd);
 	if (ret < 0)
 		comp_set_state(dev, COMP_TRIGGER_RESET);
-
-	if (dd->uaol.fb_chan_idx >= 0) {
-		ret = sof_dma_config(dd->dma, dd->uaol.fb_chan_idx, dd->uaol.fb_z_config);
-		if (ret < 0)
-			comp_set_state(dev, COMP_TRIGGER_RESET);
-	}
 
 	return ret;
 }
@@ -1618,15 +1662,9 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
 
 		/* only start the DAI if we are not XRUN handling */
 		if (dd->xrun == 0) {
-			ret = sof_dma_start(dd->dma, dd->chan_index);
+			ret = dai_dma_start(dd);
 			if (ret < 0)
 				return ret;
-
-			if (dd->uaol.fb_chan_idx >= 0) {
-				ret = sof_dma_start(dd->dma, dd->uaol.fb_chan_idx);
-				if (ret < 0)
-					return ret;
-			}
 
 			/* start the DAI */
 			dai_trigger_op(dd->dai, cmd, dev->direction);
@@ -1664,36 +1702,18 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
 		/* only start the DAI if we are not XRUN handling */
 		if (dd->xrun == 0) {
 			/* recover valid start position */
-			ret = sof_dma_stop(dd->dma, dd->chan_index);
+			ret = dai_dma_stop(dd);
 			if (ret < 0)
 				return ret;
-
-			if (dd->uaol.fb_chan_idx >= 0) {
-				ret = sof_dma_stop(dd->dma, dd->uaol.fb_chan_idx);
-				if (ret < 0)
-					return ret;
-			}
 
 			/* dma_config needed after stop */
-			ret = sof_dma_config(dd->dma, dd->chan_index, dd->z_config);
+			ret = dai_dma_config(dd);
 			if (ret < 0)
 				return ret;
 
-			if (dd->uaol.fb_z_config && dd->uaol.fb_chan_idx >= 0) {
-				ret = sof_dma_config(dd->dma, dd->uaol.fb_chan_idx, dd->uaol.fb_z_config);
-				if (ret < 0)
-					return ret;
-			}
-
-			ret = sof_dma_start(dd->dma, dd->chan_index);
+			ret = dai_dma_start(dd);
 			if (ret < 0)
 				return ret;
-
-			if (dd->uaol.fb_chan_idx >= 0) {
-				ret = sof_dma_start(dd->dma, dd->uaol.fb_chan_idx);
-				if (ret < 0)
-					return ret;
-			}
 
 			/* start the DAI */
 			dai_trigger_op(dd->dai, cmd, dev->direction);
@@ -1719,42 +1739,25 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
  * as soon as possible.
  */
 #if CONFIG_COMP_DAI_STOP_TRIGGER_ORDER_REVERSE
-		ret = sof_dma_stop(dd->dma, dd->chan_index);
-		if (dd->uaol.fb_chan_idx >= 0) {
-			ret = sof_dma_stop(dd->dma, dd->uaol.fb_chan_idx);
-		}
+		ret = dai_dma_stop(dd);
 		dai_trigger_op(dd->dai, cmd, dev->direction);
 #else
 		dai_trigger_op(dd->dai, cmd, dev->direction);
-		ret = sof_dma_stop(dd->dma, dd->chan_index);
+		ret = dai_dma_stop(dd);
 		if (ret) {
 			comp_warn(dev, "dma was stopped earlier");
 			ret = 0;
-		}
-
-		if (dd->uaol.fb_chan_idx >= 0) {
-			ret = sof_dma_stop(dd->dma, dd->uaol.fb_chan_idx);
-			if (ret) {
-				comp_warn(dev, "UAOL feedback dma was stopped earlier");
-				ret = 0;
-			}
 		}
 #endif
 		break;
 	case COMP_TRIGGER_PAUSE:
 		comp_dbg(dev, "PAUSE");
 #if CONFIG_COMP_DAI_STOP_TRIGGER_ORDER_REVERSE
-		ret = sof_dma_suspend(dd->dma, dd->chan_index);
-		if (dd->uaol.fb_chan_idx >= 0) {
-			ret = sof_dma_suspend(dd->dma, dd->uaol.fb_chan_idx);
-		}
+		ret = dai_dma_suspend(dd);
 		dai_trigger_op(dd->dai, cmd, dev->direction);
 #else
 		dai_trigger_op(dd->dai, cmd, dev->direction);
-		ret = sof_dma_suspend(dd->dma, dd->chan_index);
-		if (dd->uaol.fb_chan_idx >= 0) {
-			ret = sof_dma_suspend(dd->dma, dd->uaol.fb_chan_idx);
-		}
+		ret = dai_dma_suspend(dd);
 #endif
 		break;
 	case COMP_TRIGGER_PRE_START:
@@ -2185,7 +2188,7 @@ int dai_common_copy(struct dai_data *dd, struct comp_dev *dev, pcm_converter_fun
 		comp_warn(dev, "dai trigger copy failed");
 
 	if (dai_dma_cb(dd, dev, copy_bytes, converter) == SOF_DMA_CB_STATUS_END)
-		sof_dma_stop(dd->dma, dd->chan_index);
+		dai_dma_stop(dd);
 
 	ret = sof_dma_reload(dd->dma, dd->chan_index, copy_bytes);
 	if (ret < 0) {
