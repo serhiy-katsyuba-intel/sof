@@ -122,10 +122,10 @@ struct uaol_dai_data {
 	int feedback_drift;
 	uint32_t ms_since_last_adjustment;
 
-	int feedback_chan_idx;
-	uint32_t *feedback_dma_buf;
-	size_t feedback_dma_buf_size;
-	struct dma_config *feedback_z_config;
+	int fb_chan_idx;
+	uint32_t *fb_dma_buf;
+	size_t fb_dma_buf_size;
+	struct dma_config *fb_z_config;
 
 	struct dsrc dsrc;
 	struct comp_buffer *dsrc_buf;

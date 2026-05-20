@@ -247,10 +247,10 @@ void dai_dma_release(struct dai_data *dd, struct comp_dev *dev)
 	}
 
 #ifdef CONFIG_DAI_INTEL_UAOL
-	if (dd->uaol.feedback_chan_idx >= 0) {
-		dma_stop(dd->dma->z_dev, dd->uaol.feedback_chan_idx);
-		dma_release_channel(dd->dma->z_dev, dd->uaol.feedback_chan_idx);
-		dd->uaol.feedback_chan_idx = -EINVAL;
+	if (dd->uaol.fb_chan_idx >= 0) {
+		dma_stop(dd->dma->z_dev, dd->uaol.fb_chan_idx);
+		dma_release_channel(dd->dma->z_dev, dd->uaol.fb_chan_idx);
+		dd->uaol.fb_chan_idx = -EINVAL;
 	}
 #endif
 }
