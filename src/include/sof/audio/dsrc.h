@@ -10,13 +10,6 @@
 #include <stdint.h>
 #include <sof/platform.h>
 
-/// TODO: move it later to a more generic header!!!
-struct cir_buf_ptr {
-	void *buf_start;
-	void *buf_end;
-	void *ptr;
-};
-
 struct dsrc {
 	size_t channels;
 	int64_t previous_sample_norm[PLATFORM_MAX_CHANNELS];
