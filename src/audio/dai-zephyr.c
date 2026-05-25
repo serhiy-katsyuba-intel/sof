@@ -298,7 +298,6 @@ int dai_get_uaol_stream_id(struct dai *dai, int *uaol_link_id, int *uaol_stream_
 	return 0;
 }
 #endif	/* CONFIG_DAI_INTEL_UAOL */
-#endif // 0
 
 static void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 {
@@ -420,6 +419,7 @@ static int uaol_dma_buffer_copy_to(struct dai_data *dd, size_t bytes)
 
 	return ret;
 }
+#endif //0
 
 /* this is called by DMA driver every time descriptor has completed */
 static enum sof_dma_cb_status

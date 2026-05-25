@@ -25,7 +25,15 @@ const struct device *get_uaol_zdevice(int uaol_link_id);
 /************************************ moved from dai-zephyr.c **********************************/
 
 struct dai;
+struct comp_dev;
+struct dai_data;
 
 int dai_get_uaol_stream_id(struct dai *dai, int *uaol_link_id, int *uaol_stream_id);
+
+void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd);
+
+void adjust_uaol_rate(const struct dai_data *dd, bool increase);
+
+int uaol_dma_buffer_copy_to(struct dai_data *dd, size_t bytes);
 
 #endif /* __SOF_AUDIO_UAOL_H__ */

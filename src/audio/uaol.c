@@ -10,10 +10,13 @@
 #include <sof/tlv.h>
 
 /* for stuff move from dai-zephyr.c */
+#include <sof/audio/component_ext.h>
 #include <sof/lib/dai-zephyr.h>
 
 
 #include <sof/audio/uaol.h>
+
+LOG_MODULE_REGISTER(uaol, CONFIG_SOF_LOG_LEVEL);
 
 struct ipc4_uaol_link_capabilities {
 	uint32_t input_streams_supported          : 4;
@@ -105,4 +108,125 @@ int dai_get_uaol_stream_id(struct dai *dai, int *uaol_link_id, int *uaol_stream_
 	k_spin_unlock(&dai->lock, key);
 
 	return 0;
+}
+
+void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
+{
+	assert(dd && dd->uaol.fb_chan_idx >= 0 && dd->uaol.fb_dma_buf);
+	///assert(dev->direction == SOF_IPC_STREAM_PLAYBACK);
+
+	struct dma_status stat = {0};
+	int ret = sof_dma_get_status(dd->dma, dd->uaol.fb_chan_idx, &stat);
+	if (ret) {
+		comp_err(dev, "Failed to get UAOL feedback DMA status: %d", ret);
+		return;
+	}
+
+	if (stat.pending_length < 4) {
+		/* TODO: That's a normal case, remove this comp_dbg() ??? */
+		comp_dbg(dev, "Not enough data in UAOL feedback buffer: %d bytes", stat.pending_length);
+		return;
+	}
+
+	assert(dd->uaol.fb_dma_buf_size >= 4);
+	if (stat.read_position < 0 || stat.read_position > dd->uaol.fb_dma_buf_size - 4) {
+		comp_err(dev, "Invalid read position in UAOL feedback buffer: %d", stat.read_position);
+		return;
+	}
+
+	/* Use uncached pointer to read DMA buffer */
+	assert(is_uncached(dd->uaol.fb_dma_buf));
+
+	/* NOTE: Not all DMA drivers populate stat.write_position. Intel ACE HDA does. */
+	assert(stat.write_position & 3 == 0);	/* 4-byte alignment check. */
+	/* Read the last received 4 bytes (ignore older ones if any). */
+	int last_4_bytes_pos = stat.write_position >= 4 ? (stat.write_position - 4) :
+		(dd->uaol.fb_dma_buf_size - 4);
+	uint32_t feedback_value = dd->uaol.fb_dma_buf[last_4_bytes_pos / 4];
+
+	ret = sof_dma_reload(dd->dma, dd->uaol.fb_chan_idx, stat.pending_length);
+	if (ret < 0) {
+		comp_err(dev, "Failed to reload UAOL feedback DMA: %d, pending_length: %d",
+		 ret, stat.pending_length);
+		return;
+	}
+
+	comp_dbg(dev, "UAOL feedback value: %u", feedback_value);
+
+	const struct device *uaol_zdev = get_uaol_zdevice(dd->uaol.link_id);
+	int freq = uaol_interpret_feedback_value(uaol_zdev, dd->uaol.stream_id, feedback_value);
+
+	if (freq < 0) {
+		comp_err(dev, "Bad unexpected feedback freq value: %d", freq);
+		return;
+	}
+
+	/* Let's limit the maximum drift to a reasonable value to prevent significant audio distortion
+	 * when, for some reason, the reported drift is quite big.
+	 */
+	#define MAX_UAOL_DRIFT_HZ 6
+
+	int drift = freq - dd->ipc_config.sampling_frequency;
+	if (drift < -MAX_UAOL_DRIFT_HZ || drift > MAX_UAOL_DRIFT_HZ) {
+		comp_warn(dev, "Too much/unreasonable UAOL feedback freq value: %d, drift: %d", freq, drift);
+		return;
+	}
+
+	dd->uaol.feedback_drift = drift;
+	if (dd->uaol.feedback_drift > 0)
+		dsrc_set_rate(&dd->uaol.dsrc, dd->ipc_config.sampling_frequency, freq);
+}
+
+void adjust_uaol_rate(const struct dai_data *dd, bool increase)
+{
+	const struct device *uaol_zdev = get_uaol_zdevice(dd->uaol.link_id);
+	int ret = uaol_adjust_rate(uaol_zdev, dd->uaol.stream_id, increase);
+
+	if (ret != 0)
+		comp_err(dd->dai_dev, "Failed to adjust UAOL rate: %d", ret);
+}
+
+int uaol_dma_buffer_copy_to(struct dai_data *dd, size_t bytes)
+{
+	int ret = 0;
+
+	assert(dd->uaol.feedback_drift != 0);
+
+	if (dd->uaol.feedback_drift > 0) {
+		buffer_stream_invalidate(dd->local_buffer, bytes);
+
+		struct cir_buf_ptr in = { dd->local_buffer->stream.addr,
+			dd->local_buffer->stream.end_addr, dd->local_buffer->stream.r_ptr };
+		assert(dd->uaol.dsrc_buf);
+		struct cir_buf_ptr out = { dd->uaol.dsrc_buf->stream.addr,
+			dd->uaol.dsrc_buf->stream.end_addr, dd->uaol.dsrc_buf->stream.w_ptr };
+		size_t frames = bytes / audio_stream_frame_bytes(&dd->local_buffer->stream);
+
+		size_t added_frames = dsrc_process(&dd->uaol.dsrc, &in, &out, frames);
+		size_t added_bytes = added_frames * audio_stream_frame_bytes(&dd->local_buffer->stream);
+
+		comp_update_buffer_consume(dd->local_buffer, bytes);
+		audio_stream_produce(&dd->uaol.dsrc_buf->stream, bytes + added_bytes);
+
+		if (added_frames)
+			adjust_uaol_rate(dd, true);
+
+		size_t extra_bytes = added_frames * audio_stream_frame_bytes(&dd->dma_buffer->stream);
+		ret = dma_buffer_copy_to(dd->uaol.dsrc_buf, dd->dma_buffer,
+				 dd->process, bytes + extra_bytes, dd->chmap);
+	} else if (dd->uaol.feedback_drift < 0) {
+		assert(dd->uaol.feedback_drift <= -1 && dd->uaol.feedback_drift >= -1000);
+		dd->uaol.ms_since_last_adjustment++;
+		if (-1000 / dd->uaol.feedback_drift >= dd->uaol.ms_since_last_adjustment) {
+			dd->uaol.ms_since_last_adjustment = 0;
+			adjust_uaol_rate(dd, false);
+		}
+
+		ret = dma_buffer_copy_to(dd->local_buffer, dd->dma_buffer,
+				 dd->process, bytes, dd->chmap);
+	} else {
+		return -EINVAL;
+	}
+
+	return ret;
 }
