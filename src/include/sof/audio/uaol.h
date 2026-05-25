@@ -36,4 +36,8 @@ void adjust_uaol_rate(const struct dai_data *dd, bool increase);
 
 int uaol_dma_buffer_copy_to(struct dai_data *dd, size_t bytes);
 
+int setup_uaol_feedback_dma(struct dai_data *dd, struct comp_dev *dev);
+
+void uaol_free(struct dai_data *dd);
+
 #endif /* __SOF_AUDIO_UAOL_H__ */

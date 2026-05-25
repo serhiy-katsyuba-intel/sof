@@ -787,6 +787,7 @@ static int dai_dma_suspend(struct dai_data *dd)
 	return ret;
 }
 
+#if 0
 static void uaol_free(struct dai_data *dd)
 {
 	if (dd->uaol.fb_z_config) {
@@ -806,6 +807,7 @@ static void uaol_free(struct dai_data *dd)
 		dd->uaol.dsrc_buf = NULL;
 	}
 }
+#endif //0
 
 __cold static struct comp_dev *dai_new(const struct comp_driver *drv,
 				       const struct comp_ipc_config *config,
@@ -1394,6 +1396,7 @@ static int dai_params(struct comp_dev *dev, struct sof_ipc_stream_params *params
 	return dai_common_params(dd, dev, params);
 }
 
+#if 0
 static int setup_uaol_feedback_dma(struct dai_data *dd, struct comp_dev *dev)
 {
 	struct ipc_config_dai *dai = &dd->ipc_config;
@@ -1488,6 +1491,7 @@ static int setup_uaol_feedback_dma(struct dai_data *dd, struct comp_dev *dev)
 
 	return 0;
 }
+#endif //0
 
 int dai_common_config_prepare(struct dai_data *dd, struct comp_dev *dev)
 {

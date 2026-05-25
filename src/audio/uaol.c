@@ -230,3 +230,118 @@ int uaol_dma_buffer_copy_to(struct dai_data *dd, size_t bytes)
 
 	return ret;
 }
+
+int setup_uaol_feedback_dma(struct dai_data *dd, struct comp_dev *dev)
+{
+	struct ipc_config_dai *dai = &dd->ipc_config;
+	struct dma_config *dma_cfg;
+
+	dd->uaol.fb_chan_idx = -EINVAL;
+	dd->uaol.feedback_drift = 0;
+	dd->uaol.ms_since_last_adjustment = 0;
+
+	if (dai->type != SOF_DAI_INTEL_UAOL || dai->direction != SOF_IPC_STREAM_PLAYBACK)
+		return 0;
+
+	/* UAOL feedback is an optional 2nd DMA link (1st is audio DMA link) */
+	assert(GTW_DMA_DEVICE_MAX_COUNT >= 2);
+	if (!dai->host_dma_config[1] || !dai->host_dma_config[1]->pre_allocated_by_host) {
+		comp_info(dev, "No UAOL feedback DMA link supplied by host!");
+		return 0;
+	}
+
+	int channel = dai->host_dma_config[1]->dma_channel_id;
+	comp_dbg(dev, "UAOL feedback channel = %d", channel);
+
+	/*
+	 * UAOL feedback endpoint payload is 4 bytes.
+	 * Hi-Speed USB microframe period is 125 us (8 per 1 ms).
+	 * Double the buffer size just in case.
+	 */
+	dd->uaol.fb_dma_buf_size = 4 * 8 * 2;
+
+	/* TODO: perhaps get alignment by reading DMA alignment attribute? */
+	dd->uaol.fb_dma_buf = (uint32_t *)rballoc_align(SOF_MEM_FLAG_USER | SOF_MEM_FLAG_DMA,
+						      dd->uaol.fb_dma_buf_size, 64);
+	if (!dd->uaol.fb_dma_buf) {
+		comp_err(dev, "UAOL feedback buffer allocation failed!");
+		return -ENOMEM;
+	}
+	memset(dd->uaol.fb_dma_buf, 0, dd->uaol.fb_dma_buf_size);
+
+	dma_cfg = rballoc(SOF_MEM_FLAG_USER | SOF_MEM_FLAG_COHERENT | SOF_MEM_FLAG_DMA,
+			  sizeof(struct dma_config));
+	if (!dma_cfg) {
+		rfree(dd->uaol.fb_dma_buf);
+		dd->uaol.fb_dma_buf = NULL;
+		comp_err(dev, "dma_cfg allocation failed");
+		return -ENOMEM;
+	}
+
+	memset(dma_cfg, 0, sizeof(struct dma_config));
+	dma_cfg->dma_slot = 0;
+	dma_cfg->channel_direction = PERIPHERAL_TO_MEMORY;
+	dma_cfg->source_data_size = 4;
+	dma_cfg->dest_data_size = 4;
+	dma_cfg->source_burst_length = 4;
+	dma_cfg->dest_burst_length = 4;
+	dma_cfg->cyclic = 1;
+	dma_cfg->block_count = 1;
+
+	dma_cfg->head_block = rballoc(SOF_MEM_FLAG_USER | SOF_MEM_FLAG_COHERENT | SOF_MEM_FLAG_DMA,
+					      sizeof(struct dma_block_config));
+	if (!dma_cfg->head_block) {
+		rfree(dma_cfg);
+		rfree(dd->uaol.fb_dma_buf);
+		dd->uaol.fb_dma_buf = NULL;
+		comp_err(dev, "dma_block_config allocation failed");
+		return -ENOMEM;
+	}
+
+	memset(dma_cfg->head_block, 0, sizeof(struct dma_block_config));
+	dma_cfg->head_block->dest_scatter_en = 0;
+	dma_cfg->head_block->block_size = dd->uaol.fb_dma_buf_size;
+	dma_cfg->head_block->source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
+	dma_cfg->head_block->dest_addr_adj = DMA_ADDR_ADJ_DECREMENT;	/* WHY? IS THIS OK??? */
+	dma_cfg->head_block->source_address = 0;
+	dma_cfg->head_block->dest_address = (uint32_t)dd->uaol.fb_dma_buf;
+	dma_cfg->head_block->next_block = dma_cfg->head_block;
+	dd->uaol.fb_z_config = dma_cfg;
+
+	/* get DMA channel */
+	dd->uaol.fb_chan_idx = sof_dma_request_channel(dd->dma, channel);
+	if (dd->uaol.fb_chan_idx < 0) {
+		rfree(dma_cfg->head_block);
+		rfree(dma_cfg);
+		rfree(dd->uaol.fb_dma_buf);
+		dd->uaol.fb_dma_buf = NULL;
+		comp_err(dev, "dma_request_channel() failed");
+		return -EIO;
+	}
+
+	dsrc_init(&dd->uaol.dsrc, dai->gtw_fmt->channels_count);
+
+	comp_dbg(dev, "New configured UAOL feedback DMA channel index %d", dd->uaol.fb_chan_idx);
+
+	return 0;
+}
+
+void uaol_free(struct dai_data *dd)
+{
+	if (dd->uaol.fb_z_config) {
+		rfree(dd->uaol.fb_z_config->head_block);
+		rfree(dd->uaol.fb_z_config);
+		dd->uaol.fb_z_config = NULL;
+	}
+
+	if (dd->uaol.fb_dma_buf) {
+		rfree(dd->uaol.fb_dma_buf);
+		dd->uaol.fb_dma_buf = NULL;
+		dd->uaol.fb_dma_buf_size = 0;
+	}
+
+	if (dd->uaol.dsrc_buf) {
+		buffer_free(dd->uaol.dsrc_buf);
+		dd->uaol.dsrc_buf = NULL;
+	}
+}
