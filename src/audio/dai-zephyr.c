@@ -48,6 +48,7 @@
 #include <zephyr/drivers/dai.h>
 #ifdef CONFIG_DAI_INTEL_UAOL
 #include <zephyr/drivers/uaol.h>
+#include <sof/audio/uaol.h>
 #endif
 
 #include <sof/debug/telemetry/performance_monitor.h>
