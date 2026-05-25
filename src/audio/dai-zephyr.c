@@ -280,6 +280,7 @@ static int dai_get_fifo(struct dai *dai, int direction, int stream_id)
 	return fifo_address;
 }
 
+#if 0
 #ifdef CONFIG_DAI_INTEL_UAOL
 int dai_get_uaol_stream_id(struct dai *dai, int *uaol_link_id, int *uaol_stream_id)
 {
@@ -297,6 +298,7 @@ int dai_get_uaol_stream_id(struct dai *dai, int *uaol_link_id, int *uaol_stream_
 	return 0;
 }
 #endif	/* CONFIG_DAI_INTEL_UAOL */
+#endif // 0
 
 static void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 {

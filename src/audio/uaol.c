@@ -8,6 +8,11 @@
 #include <zephyr/drivers/uaol.h>
 #include <rtos/string.h>
 #include <sof/tlv.h>
+
+/* for stuff move from dai-zephyr.c */
+#include <sof/lib/dai-zephyr.h>
+
+
 #include <sof/audio/uaol.h>
 
 struct ipc4_uaol_link_capabilities {
@@ -82,4 +87,22 @@ const struct device *get_uaol_zdevice(int uaol_link_id)
 	/* uaol_link_id is just an index for the device tree device */
 	assert(uaol_link_id < ARRAY_SIZE(uaol_devs));
 	return uaol_devs[uaol_link_id];
+}
+
+/************************************ moved from dai-zephyr.c **********************************/
+
+int dai_get_uaol_stream_id(struct dai *dai, int *uaol_link_id, int *uaol_stream_id)
+{
+	const struct dai_properties *props;
+	k_spinlock_key_t key;
+
+	key = k_spin_lock(&dai->lock);
+
+	props = dai_get_properties(dai->dev, 0, 0);
+	*uaol_link_id = props->uaol_link_id;
+	*uaol_stream_id = props->uaol_stream_id;
+
+	k_spin_unlock(&dai->lock, key);
+
+	return 0;
 }
