@@ -597,10 +597,12 @@ static void dai_dma_release_channel(struct dai_data *dd)
 		dd->chan_index = -EINVAL;
 	}
 
+#if CONFIG_UAOL_INTEL_ADSP
 	if (dd->uaol.fb_chan_idx >= 0) {
 		sof_dma_release_channel(dd->dma, dd->uaol.fb_chan_idx);
 		dd->uaol.fb_chan_idx = -EINVAL;
 	}
+#endif
 }
 
 static int dai_dma_config(struct dai_data *dd)
@@ -609,8 +611,10 @@ static int dai_dma_config(struct dai_data *dd)
 	if (ret < 0)
 		return ret;
 
+#if CONFIG_UAOL_INTEL_ADSP
 	if (dd->uaol.fb_chan_idx >= 0)
 		ret = sof_dma_config(dd->dma, dd->uaol.fb_chan_idx, dd->uaol.fb_z_config);
+#endif
 
 	return ret;
 }
@@ -621,8 +625,10 @@ static int dai_dma_start(struct dai_data *dd)
 	if (ret < 0)
 		return ret;
 
+#if CONFIG_UAOL_INTEL_ADSP
 	if (dd->uaol.fb_chan_idx >= 0)
 		ret = sof_dma_start(dd->dma, dd->uaol.fb_chan_idx);
+#endif
 
 	return ret;
 }
@@ -631,9 +637,11 @@ static int dai_dma_stop(struct dai_data *dd)
 {
 	int ret = sof_dma_stop(dd->dma, dd->chan_index);
 
+#if CONFIG_UAOL_INTEL_ADSP
 	/* seems it's better to stop feedback even when the above fails */
 	if (dd->uaol.fb_chan_idx >= 0)
 		sof_dma_stop(dd->dma, dd->uaol.fb_chan_idx);
+#endif
 
 	return ret;
 }
@@ -642,9 +650,11 @@ static int dai_dma_suspend(struct dai_data *dd)
 {
 	int ret = sof_dma_suspend(dd->dma, dd->chan_index);
 
+#if CONFIG_UAOL_INTEL_ADSP
 	/* seems it's better to suspend feedback even when the above fails */
 	if (dd->uaol.fb_chan_idx >= 0)
 		sof_dma_suspend(dd->dma, dd->uaol.fb_chan_idx);
+#endif
 
 	return ret;
 }
@@ -711,7 +721,9 @@ __cold void dai_common_free(struct dai_data *dd)
 
 	rfree(dd->dai_spec_config);
 
+#if CONFIG_UAOL_INTEL_ADSP
 	uaol_free(dd);
+#endif
 }
 
 __cold static void dai_free(struct comp_dev *dev)
