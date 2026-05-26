@@ -3,17 +3,11 @@
  * Copyright 2026 Intel Corporation. All rights reserved.
  */
 
-//#include <rtos/string.h>
-//#include <sof/audio/audio_stream.h>
 #include <zephyr/drivers/uaol.h>
 #include <rtos/string.h>
 #include <sof/tlv.h>
-
-/* for stuff move from dai-zephyr.c */
 #include <sof/audio/component_ext.h>
 #include <sof/lib/dai-zephyr.h>
-
-
 #include <sof/audio/uaol.h>
 
 LOG_MODULE_REGISTER(uaol, CONFIG_SOF_LOG_LEVEL);
@@ -66,7 +60,7 @@ __cold void tlv_value_set_uaol_caps(struct sof_tlv *tuple, uint32_t type)
 
 	tlv_value_set(tuple, type, caps_size, caps);
 }
-#endif /* CONFIG_SOF_OS_LINUX_COMPAT_PRIORITY */
+#endif /* !CONFIG_SOF_OS_LINUX_COMPAT_PRIORITY */
 
 __cold int uaol_stream_id_to_hda_link_stream_id(int uaol_stream_id)
 {
@@ -92,8 +86,12 @@ const struct device *get_uaol_zdevice(int uaol_link_id)
 	return uaol_devs[uaol_link_id];
 }
 
-/************************************ moved from dai-zephyr.c **********************************/
+/* These are called from dai-zephyr */
 
+/* The UAOL DAI device has a DMA stream with a corresponding mapped (hardwired in HW)
+ * UAOL device stream. These streams are separate entities. This function returns
+ * the UAOL device stream ID that is mapped to the UAOL DAI DMA stream.
+ */
 int dai_get_uaol_stream_id(struct dai *dai, int *uaol_link_id, int *uaol_stream_id)
 {
 	const struct dai_properties *props;
@@ -110,10 +108,13 @@ int dai_get_uaol_stream_id(struct dai *dai, int *uaol_link_id, int *uaol_stream_
 	return 0;
 }
 
+/* Reads the feedback frequency (USB playback device "desired" frequency) from the feedback
+ * USB endpoint via the feedback DMA channel. Then updates the DSRC rate if necessary. Called
+ * from the dai-zephyr DMA callback.
+ */
 void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 {
 	assert(dd && dd->uaol.fb_chan_idx >= 0 && dd->uaol.fb_dma_buf);
-	///assert(dev->direction == SOF_IPC_STREAM_PLAYBACK);
 
 	struct dma_status stat = {0};
 	int ret = sof_dma_get_status(dd->dma, dd->uaol.fb_chan_idx, &stat);
@@ -122,20 +123,15 @@ void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 		return;
 	}
 
+	/* Expected feedback length is 4 bytes */
 	if (stat.pending_length < 4) {
-		/* TODO: That's a normal case, remove this comp_dbg() ??? */
-		comp_dbg(dev, "Not enough data in UAOL feedback buffer: %d bytes", stat.pending_length);
+		/* No feedback is normal, as it is sent rarely (e.g., every 128 ms or less often). */
+		/* comp_dbg(dev, "No feedback data: %d bytes", stat.pending_length); */
 		return;
 	}
 
+	assert(is_uncached(dd->uaol.fb_dma_buf));	/* Use uncached pointer to read DMA buffer */
 	assert(dd->uaol.fb_dma_buf_size >= 4);
-	if (stat.read_position < 0 || stat.read_position > dd->uaol.fb_dma_buf_size - 4) {
-		comp_err(dev, "Invalid read position in UAOL feedback buffer: %d", stat.read_position);
-		return;
-	}
-
-	/* Use uncached pointer to read DMA buffer */
-	assert(is_uncached(dd->uaol.fb_dma_buf));
 
 	/* NOTE: Not all DMA drivers populate stat.write_position. Intel ACE HDA does. */
 	assert(stat.write_position & 3 == 0);	/* 4-byte alignment check. */
@@ -151,32 +147,36 @@ void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 		return;
 	}
 
-	comp_dbg(dev, "UAOL feedback value: %u", feedback_value);
+	comp_dbg(dev, "UAOL feedback: 0x%x", feedback_value);
 
 	const struct device *uaol_zdev = get_uaol_zdevice(dd->uaol.link_id);
 	int freq = uaol_interpret_feedback_value(uaol_zdev, dd->uaol.stream_id, feedback_value);
 
 	if (freq < 0) {
-		comp_err(dev, "Bad unexpected feedback freq value: %d", freq);
+		comp_err(dev, "Unexpected feedback value: 0x%x, err/freq: %d", feedback_value, freq);
 		return;
 	}
 
-	/* Let's limit the maximum drift to a reasonable value to prevent significant audio distortion
-	 * when, for some reason, the reported drift is quite big.
+	/* Let's limit the maximum drift to a reasonable value to prevent significant
+	 * audio distortion when, for some reason, the reported drift is quite big.
 	 */
 	#define MAX_UAOL_DRIFT_HZ 6
 
 	int drift = freq - dd->ipc_config.sampling_frequency;
 	if (drift < -MAX_UAOL_DRIFT_HZ || drift > MAX_UAOL_DRIFT_HZ) {
-		comp_warn(dev, "Too much/unreasonable UAOL feedback freq value: %d, drift: %d", freq, drift);
-		return;
+		comp_warn(dev, "Unreasonable UAOL feedback freq value: %d, drift: %d", freq, drift);
+		drift = MAX(-MAX_UAOL_DRIFT_HZ, MIN(drift, MAX_UAOL_DRIFT_HZ));
 	}
 
 	dd->uaol.feedback_drift = drift;
 	if (dd->uaol.feedback_drift > 0)
-		dsrc_set_rate(&dd->uaol.dsrc, dd->ipc_config.sampling_frequency, freq);
+		dsrc_set_rate(&dd->uaol.dsrc, dd->ipc_config.sampling_frequency,
+		      drift + dd->ipc_config.sampling_frequency);
 }
 
+/* Tells UAOL HW to skip one audio frame or copy one additional audio frame
+ * on the next service interval to adjust the data rate.
+ */
 void adjust_uaol_rate(const struct dai_data *dd, bool increase)
 {
 	const struct device *uaol_zdev = get_uaol_zdevice(dd->uaol.link_id);
@@ -186,6 +186,11 @@ void adjust_uaol_rate(const struct dai_data *dd, bool increase)
 		comp_err(dd->dai_dev, "Failed to adjust UAOL rate: %d", ret);
 }
 
+/* For UAOL playback with non-zero feedback frequency drift, the UAOL rate should be adjusted
+ * periodically to compensate for the drift. Additionally, for positive drift, DSRC is used
+ * to resample audio and insert additional audio frame as needed.
+ * This function is called from the dai-zephyr dai_dma_cb().
+ */
 int uaol_dma_buffer_copy_to(struct dai_data *dd, size_t bytes)
 {
 	int ret = 0;
@@ -203,20 +208,25 @@ int uaol_dma_buffer_copy_to(struct dai_data *dd, size_t bytes)
 		size_t frames = bytes / audio_stream_frame_bytes(&dd->local_buffer->stream);
 
 		size_t added_frames = dsrc_process(&dd->uaol.dsrc, &in, &out, frames);
-		size_t added_bytes = added_frames * audio_stream_frame_bytes(&dd->local_buffer->stream);
+		size_t src_added_bytes = added_frames *
+			audio_stream_frame_bytes(&dd->local_buffer->stream);
 
 		comp_update_buffer_consume(dd->local_buffer, bytes);
-		audio_stream_produce(&dd->uaol.dsrc_buf->stream, bytes + added_bytes);
+		audio_stream_produce(&dd->uaol.dsrc_buf->stream, bytes + src_added_bytes);
 
 		if (added_frames)
 			adjust_uaol_rate(dd, true);
 
-		size_t extra_bytes = added_frames * audio_stream_frame_bytes(&dd->dma_buffer->stream);
+		/* dma_buffer_copy_to() may do format conversion so
+		 * dst_added_bytes may not be equal to src_added_bytes.
+		 */
+		size_t dst_added_bytes = added_frames * audio_stream_frame_bytes(&dd->dma_buffer->stream);
 		ret = dma_buffer_copy_to(dd->uaol.dsrc_buf, dd->dma_buffer,
-				 dd->process, bytes + extra_bytes, dd->chmap);
+				 dd->process, bytes + dst_added_bytes, dd->chmap);
 	} else if (dd->uaol.feedback_drift < 0) {
-		assert(dd->uaol.feedback_drift <= -1 && dd->uaol.feedback_drift >= -1000);
+		/* It is expected this func is called every 1 ms */
 		dd->uaol.ms_since_last_adjustment++;
+		assert(dd->uaol.feedback_drift < 0 && dd->uaol.feedback_drift >= -1000);
 		if (-1000 / dd->uaol.feedback_drift >= dd->uaol.ms_since_last_adjustment) {
 			dd->uaol.ms_since_last_adjustment = 0;
 			adjust_uaol_rate(dd, false);
@@ -224,13 +234,16 @@ int uaol_dma_buffer_copy_to(struct dai_data *dd, size_t bytes)
 
 		ret = dma_buffer_copy_to(dd->local_buffer, dd->dma_buffer,
 				 dd->process, bytes, dd->chmap);
-	} else {
+	} else
 		return -EINVAL;
-	}
 
 	return ret;
 }
 
+/* When the host setups two DMA links for UAOL playback gateway, that tells us the second
+ * DMA link is to read from the USB feedback endpoint. This function (re)setups the feedback
+ * DMA channel and buffer for such case.
+ */
 int setup_uaol_feedback_dma(struct dai_data *dd, struct comp_dev *dev)
 {
 	struct ipc_config_dai *dai = &dd->ipc_config;
@@ -246,17 +259,15 @@ int setup_uaol_feedback_dma(struct dai_data *dd, struct comp_dev *dev)
 	/* UAOL feedback is an optional 2nd DMA link (1st is audio DMA link) */
 	assert(GTW_DMA_DEVICE_MAX_COUNT >= 2);
 	if (!dai->host_dma_config[1] || !dai->host_dma_config[1]->pre_allocated_by_host) {
-		comp_info(dev, "No UAOL feedback DMA link supplied by host!");
+		comp_info(dev, "No UAOL feedback DMA link supplied by host.");
 		return 0;
 	}
 
 	int channel = dai->host_dma_config[1]->dma_channel_id;
-	comp_dbg(dev, "UAOL feedback channel = %d", channel);
+	comp_dbg(dev, "UAOL feedback channel: %d", channel);
 
-	/*
-	 * UAOL feedback endpoint payload is 4 bytes.
-	 * Hi-Speed USB microframe period is 125 us (8 per 1 ms).
-	 * Double the buffer size just in case.
+	/* USB feedback endpoint payload is 4 bytes. Hi-Speed USB microframe
+	 * period is 125 us (8 per 1 ms). Double the buffer size just in case.
 	 */
 	dd->uaol.fb_dma_buf_size = 4 * 8 * 2;
 
@@ -308,7 +319,6 @@ int setup_uaol_feedback_dma(struct dai_data *dd, struct comp_dev *dev)
 	dma_cfg->head_block->next_block = dma_cfg->head_block;
 	dd->uaol.fb_z_config = dma_cfg;
 
-	/* get DMA channel */
 	dd->uaol.fb_chan_idx = sof_dma_request_channel(dd->dma, channel);
 	if (dd->uaol.fb_chan_idx < 0) {
 		rfree(dma_cfg->head_block);
@@ -321,7 +331,7 @@ int setup_uaol_feedback_dma(struct dai_data *dd, struct comp_dev *dev)
 
 	dsrc_init(&dd->uaol.dsrc, dai->gtw_fmt->channels_count);
 
-	comp_dbg(dev, "New configured UAOL feedback DMA channel index %d", dd->uaol.fb_chan_idx);
+	comp_dbg(dev, "New configured UAOL feedback DMA channel: %d", dd->uaol.fb_chan_idx);
 
 	return 0;
 }
