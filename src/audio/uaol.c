@@ -157,15 +157,24 @@ void process_uaol_feedback(struct comp_dev *dev, struct dai_data *dd)
 		return;
 	}
 
-	/* Let's limit the maximum drift to a reasonable value to prevent significant
-	 * audio distortion when, for some reason, the reported drift is quite big.
+	/* Let's do a sanity check first to see if the received value looks valid.
+	 * Then limit the maximum drift to a reasonable value to prevent significant
+	 * audio distortion when, for some reason, the reported drift is quite large.
 	 */
-	#define MAX_UAOL_DRIFT_HZ 6
+	#define REJECT_DRIFT_HZ 1000
+	#define CLIP_DRIFT_HZ 6
 
 	int drift = freq - dd->ipc_config.sampling_frequency;
-	if (drift < -MAX_UAOL_DRIFT_HZ || drift > MAX_UAOL_DRIFT_HZ) {
-		comp_warn(dev, "Unreasonable UAOL feedback freq value: %d, drift: %d", freq, drift);
-		drift = MAX(-MAX_UAOL_DRIFT_HZ, MIN(drift, MAX_UAOL_DRIFT_HZ));
+
+	if (drift < -REJECT_DRIFT_HZ || drift > REJECT_DRIFT_HZ) {
+		comp_err(dev, "Weird UAOL feedback freq value: %d, drift: %d. Rejected!",
+		 freq, drift);
+		return;
+	}
+	if (drift < -CLIP_DRIFT_HZ || drift > CLIP_DRIFT_HZ) {
+		comp_warn(dev, "Unreasonable UAOL feedback freq value: %d, drift: %d. Clipped!",
+		  freq, drift);
+		drift = MAX(-CLIP_DRIFT_HZ, MIN(drift, CLIP_DRIFT_HZ));
 	}
 
 	dd->uaol.feedback_drift = drift;
