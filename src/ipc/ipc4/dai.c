@@ -28,6 +28,9 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <sof/audio/module_adapter/module/generic.h>
+#ifdef CONFIG_DAI_INTEL_UAOL
+#include <sof/audio/uaol.h>
+#endif
 
 #include "../audio/copier/copier.h"
 #include "../audio/copier/dai_copier.h"
