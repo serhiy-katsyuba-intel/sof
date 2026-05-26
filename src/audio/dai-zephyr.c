@@ -349,9 +349,11 @@ dai_dma_cb(struct dai_data *dd, struct comp_dev *dev, uint32_t bytes,
 		}
 #endif
 
+#ifdef CONFIG_DAI_INTEL_UAOL
 		if (dd->uaol.feedback_drift)
 			uaol_dma_buffer_copy_to(dd, bytes);
 		else
+#endif /* CONFIG_DAI_INTEL_UAOL */
 			ret = dma_buffer_copy_to(dd->local_buffer, dd->dma_buffer,
 				     dd->process, bytes, dd->chmap);
 	} else {
@@ -436,9 +438,10 @@ dai_dma_cb(struct dai_data *dd, struct comp_dev *dev, uint32_t bytes,
 		dd->total_data_processed += bytes;
 	}
 
-	if (dd->uaol.fb_dma_buf && dd->uaol.fb_chan_idx >= 0) {
+#ifdef CONFIG_DAI_INTEL_UAOL
+	if (dd->uaol.fb_chan_idx >= 0)
 		process_uaol_feedback(dev, dd);
-	}
+#endif	/* CONFIG_DAI_INTEL_UAOL */
 
 #ifdef CONFIG_SOF_TELEMETRY_IO_PERFORMANCE_MEASUREMENTS
 	/* Increment performance counters */
@@ -1193,12 +1196,18 @@ int dai_common_params(struct dai_data *dd, struct comp_dev *dev,
 		goto out;
 	}
 
-	/* create dsrc output buffer (if needed) */
-	if (dd->ipc_config.type == SOF_DAI_INTEL_UAOL && dd->ipc_config.direction == SOF_IPC_STREAM_PLAYBACK) {
-		/* dsrc may add 1 extra frame as a result of interpolation, dsrc only works with 32-bit data */
+	/* Ideally, this should be moved into setup_uaol_feedback_dma() in uaol.c, but
+	 * there is no easy access to "params" there to set up the buffer format.
+	 */
+#ifdef CONFIG_DAI_INTEL_UAOL
+	/* create DSRC output buffer (if needed) */
+	if (dd->ipc_config.type == SOF_DAI_INTEL_UAOL &&
+			dd->ipc_config.direction == SOF_IPC_STREAM_PLAYBACK) {
+		/* resampling might generate 1 extra frame; DSRC only works with 32-bit data */
 		size_t dsrc_buf_size = (dev->frames + 1) * dd->ipc_config.gtw_fmt->channels_count * 4;
-		dd->uaol.dsrc_buf = buffer_alloc_range(NULL, dsrc_buf_size, dsrc_buf_size, SOF_MEM_FLAG_USER,
-				    PLATFORM_DCACHE_ALIGN, BUFFER_USAGE_NOT_SHARED);
+		dd->uaol.dsrc_buf = buffer_alloc_range(NULL, dsrc_buf_size, dsrc_buf_size,
+					       SOF_MEM_FLAG_USER, PLATFORM_DCACHE_ALIGN,
+					       BUFFER_USAGE_NOT_SHARED);
 		if (!dd->uaol.dsrc_buf) {
 			comp_err(dev, "failed to alloc dsrc buffer");
 			goto out;
@@ -1207,6 +1216,7 @@ int dai_common_params(struct dai_data *dd, struct comp_dev *dev,
 		/* params should be same as local_buffer's */
 		buffer_set_params(dd->uaol.dsrc_buf, &params, BUFFER_UPDATE_FORCE);
 	}
+#endif	/* CONFIG_DAI_INTEL_UAOL */
 
 out:
 	/*
@@ -1273,8 +1283,10 @@ int dai_common_config_prepare(struct dai_data *dd, struct comp_dev *dev)
 	comp_dbg(dev, "new configured dma channel index %d",
 		 dd->chan_index);
 
-	/* Does nothing when non-UAOL gateway */
+#ifdef CONFIG_DAI_INTEL_UAOL
+	/* Does nothing if feedback DMA is not needed */
 	setup_uaol_feedback_dma(dd, dev);
+#endif	/* CONFIG_DAI_INTEL_UAOL */
 
 	return 0;
 }
@@ -1299,8 +1311,10 @@ int dai_common_prepare(struct dai_data *dd, struct comp_dev *dev)
 
 	/* clear dma buffer to avoid pop noise */
 	buffer_zero(dd->dma_buffer);
+#ifdef CONFIG_DAI_INTEL_UAOL
 	if (dd->uaol.fb_dma_buf)
 		memset(dd->uaol.fb_dma_buf, 0, dd->uaol.fb_dma_buf_size);
+#endif	/* CONFIG_DAI_INTEL_UAOL */
 
 	/* dma reconfig not required if XRUN handling */
 	if (dd->xrun) {
@@ -1360,7 +1374,9 @@ void dai_common_reset(struct dai_data *dd, struct comp_dev *dev)
 		dd->dma_buffer = NULL;
 	}
 
+#ifdef CONFIG_DAI_INTEL_UAOL
 	uaol_free(dd);
+#endif	/* CONFIG_DAI_INTEL_UAOL */
 
 	dd->wallclock = 0;
 	dd->total_data_processed = 0;
@@ -1418,8 +1434,14 @@ static int dai_comp_trigger_internal(struct dai_data *dd, struct comp_dev *dev, 
 		if (dev->direction == SOF_IPC_STREAM_CAPTURE) {
 			buffer_zero(dd->dma_buffer);
 		}
+
+#ifdef CONFIG_DAI_INTEL_UAOL
+		/* It might be beneficial to clear any old obsolete feedback value to prevent
+		 * it from being used to adjust the rate immediately after resume. A feedback
+		 * value of 0 will be rejected by the sanity check. */
 		if (dd->uaol.fb_dma_buf)
 			memset(dd->uaol.fb_dma_buf, 0, dd->uaol.fb_dma_buf_size);
+#endif	/* CONFIG_DAI_INTEL_UAOL */
 
 		/* DMA driver and SOF's view of the DMA buffer's
 		 * read and write cursors must be the same to

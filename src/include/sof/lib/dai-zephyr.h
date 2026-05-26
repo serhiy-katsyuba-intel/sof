@@ -115,12 +115,8 @@ typedef int (*channel_copy_func)(const struct audio_stream *src, unsigned int sr
 				 struct audio_stream *dst, unsigned int dst_channel,
 				 unsigned int frames);
 
-/* TODO: consider to move this into some UAOL header file? */
 #ifdef CONFIG_DAI_INTEL_UAOL
 struct uaol_dai_data {
-	/* Diff between feedback freq read from UAOL endpoint and audio
-	 * format freq. In Hz. From -MAX_UAOL_DRIFT_HZ to MAX_UAOL_DRIFT_HZ.
-	 */
 	int feedback_drift;
 	uint32_t ms_since_last_adjustment;
 
@@ -289,10 +285,6 @@ uint32_t dai_get_init_delay_ms(struct dai *dai);
  * \brief Get DAI stream id
  */
 int dai_get_stream_id(struct dai *dai, int direction);
-
-#ifdef CONFIG_DAI_INTEL_UAOL
-int dai_get_uaol_stream_id(struct dai *dai, int *uaol_link_id, int *uaol_stream_id);
-#endif
 
 /**
  * \brief Configure DMA channel for DAI
