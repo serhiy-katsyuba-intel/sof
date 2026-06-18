@@ -620,15 +620,6 @@ zephyr_library_sources_ifdef(CONFIG_SHELL
 
 zephyr_syscall_header(${SOF_SRC_PATH}/include/sof/audio/module_adapter/module/generic.h)
 
-if(CONFIG_COMP_NOISE_LEVEL_DETECTOR)
-zephyr_library_sources(
-	${SOF_AUDIO_PATH}/nld/nld.c
-)
-zephyr_library_link_libraries(
-	${SOF_AUDIO_PATH}/nld/lib/ptl/NldLib.a
-)
-endif()
-
 # Zephyr drivers OOT
 add_subdirectory(drivers)
 
