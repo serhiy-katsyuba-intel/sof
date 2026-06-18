@@ -59,6 +59,8 @@
 
 LOG_MODULE_DECLARE(ipc, CONFIG_SOF_LOG_LEVEL);
 
+extern volatile uint32_t *aaa;
+
 /* Userspace message context, copied in/out by kernel IPC thread. */
 /* fw sends a fw ipc message to send the status of the last host ipc message */
 static struct ipc_msg *msg_reply;
@@ -769,12 +771,16 @@ __cold static int ipc4_init_module_instance(struct ipc4_message_request *ipc4)
 
 __cold static int ipc4_bind_module_instance(struct ipc4_message_request *ipc4)
 {
+aaa[1] = 1;
+
 	struct ipc4_module_bind_unbind bu;
 	struct ipc *ipc = ipc_get();
 
 	assert_can_be_cold();
 
+aaa[1] = 2;
 	int ret = memcpy_s(&bu, sizeof(bu), ipc4, sizeof(*ipc4));
+aaa[1] = 3;
 
 	if (ret < 0)
 		return IPC4_FAILURE;
@@ -783,7 +789,10 @@ __cold static int ipc4_bind_module_instance(struct ipc4_message_request *ipc4)
 	       (uint32_t)bu.primary.r.module_id, (uint32_t)bu.primary.r.instance_id,
 	       (uint32_t)bu.extension.r.dst_module_id, (uint32_t)bu.extension.r.dst_instance_id);
 
-	return ipc_comp_connect(ipc, (ipc_pipe_comp_connect *)&bu);
+aaa[1] = 4;
+	int rrr = ipc_comp_connect(ipc, (ipc_pipe_comp_connect *)&bu);
+aaa[1] = 5;
+	return rrr;
 }
 
 __cold static int ipc4_unbind_module_instance(struct ipc4_message_request *ipc4)

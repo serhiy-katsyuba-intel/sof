@@ -38,6 +38,8 @@
 
 LOG_MODULE_DECLARE(ipc, CONFIG_SOF_LOG_LEVEL);
 
+extern volatile uint32_t *aaa;
+
 __cold static bool valid_ipc_buffer_desc(const struct sof_ipc_buffer *desc)
 {
 	assert_can_be_cold();
@@ -53,6 +55,8 @@ __cold static bool valid_ipc_buffer_desc(const struct sof_ipc_buffer *desc)
 __cold struct comp_buffer *buffer_new(struct mod_alloc_ctx *alloc,
 				      const struct sof_ipc_buffer *desc, bool is_shared)
 {
+aaa[4] = 1;
+
 	struct comp_buffer *buffer;
 	uint32_t flags = desc->flags;
 
@@ -78,9 +82,13 @@ __cold struct comp_buffer *buffer_new(struct mod_alloc_ctx *alloc,
 		tr_warn(&buffer_tr, "Deprecated buffer caps 0x%x used, convert to flags 0x%x",
 			desc->caps, flags);
 
+aaa[4] = 2;
+aaa[5] = alloc;
 	/* allocate buffer */
 	buffer = buffer_alloc(alloc, desc->size, flags, PLATFORM_DCACHE_ALIGN,
 			      is_shared);
+aaa[4] = 3;
+
 	if (buffer) {
 		buffer->stream.runtime_stream_params.id = desc->comp.id;
 		buffer->stream.runtime_stream_params.pipeline_id = desc->comp.pipeline_id;

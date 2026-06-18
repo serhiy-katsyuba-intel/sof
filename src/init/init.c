@@ -257,8 +257,13 @@ int sof_main(int argc, char *argv[])
 	return start_complete();
 }
 
+volatile uint32_t *aaa = NULL;
+
 static int sof_init(void)
 {
+aaa = sys_cache_uncached_ptr_get((__sparse_force void __sparse_cache *) (WIN3_MBASE + WIN3_OFFSET + 0x1000));
+aaa[0] = 0xABCD1234;
+
 	return primary_core_init(0, NULL, &sof);
 }
 

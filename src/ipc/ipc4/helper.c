@@ -63,6 +63,8 @@ LOG_MODULE_DECLARE(ipc, CONFIG_SOF_LOG_LEVEL);
 
 extern struct tr_ctx comp_tr;
 
+extern volatile uint32_t *aaa;
+
 static const struct comp_driver *ipc4_get_drv(const void *uuid);
 static int ipc4_add_comp_dev(struct comp_dev *dev);
 
@@ -531,16 +533,23 @@ __cold static struct comp_buffer *ipc4_create_buffer(struct comp_dev *src, bool 
 						uint32_t buf_size, uint32_t src_queue,
 						uint32_t dst_queue, struct mod_alloc_ctx *alloc)
 {
+aaa[3] = 1;
+
 	struct sof_ipc_buffer ipc_buf;
 
 	assert_can_be_cold();
 
+aaa[3] = 2;
 	memset(&ipc_buf, 0, sizeof(ipc_buf));
+aaa[3] = 3;
 	ipc_buf.size = buf_size;
 	ipc_buf.comp.id = IPC4_COMP_ID(src_queue, dst_queue);
 	ipc_buf.comp.pipeline_id = src->ipc_config.pipeline_id;
 	ipc_buf.comp.core = cpu_get_id();
-	return buffer_new(alloc, &ipc_buf, is_shared);
+aaa[3] = 4;
+	struct comp_buffer *rrr = buffer_new(alloc, &ipc_buf, is_shared);
+aaa[3] = 5;
+	return rrr;
 }
 
 #if CONFIG_CROSS_CORE_STREAM
@@ -614,6 +623,8 @@ static int ll_wait_finished_on_core(struct comp_dev *dev)
 /* Only called from ipc4_bind_module_instance(), which is __cold */
 __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 {
+aaa[2] = 1;
+
 	struct ipc4_module_bind_unbind *bu;
 	struct bind_info bind_data;
 	struct comp_buffer *buffer;
@@ -636,6 +647,8 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 	source = ipc4_get_comp_dev(src_id);
 	sink = ipc4_get_comp_dev(sink_id);
 
+aaa[2] = 2;
+
 	if (!source || !sink) {
 		tr_err(&ipc_tr, "failed to find src %x, or dst %x", src_id, sink_id);
 		return IPC4_INVALID_RESOURCE_ID;
@@ -644,6 +657,7 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 	struct mod_alloc_ctx *alloc;
 
 #if CONFIG_ZEPHYR_DP_SCHEDULER
+aaa[2] = 3;
 	if (source->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP &&
 	    sink->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP) {
 		tr_err(&ipc_tr, "DP to DP binding is not supported: can't bind %x to %x",
@@ -660,18 +674,25 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 	else
 		dp = NULL;
 
+aaa[2] = 4;
 	alloc = dp && dp->mod ? dp->mod->priv.resources.alloc : NULL;
 #else
 	alloc = NULL;
 #endif /* CONFIG_ZEPHYR_DP_SCHEDULER */
 	bool cross_core_bind = source->ipc_config.core != sink->ipc_config.core;
 
+aaa[2] = 5;
 	/* If both components are on same core -- process IPC on that core,
 	 * otherwise stay on core 0
 	 */
-	if (!cpu_is_me(source->ipc_config.core) && !cross_core_bind)
-		return ipc4_process_on_core(source->ipc_config.core, false);
+	if (!cpu_is_me(source->ipc_config.core) && !cross_core_bind) {
+aaa[2] = 6;
+		int rrr = ipc4_process_on_core(source->ipc_config.core, false);
+aaa[2] = 7;
+		return rrr;
+	}
 
+aaa[2] = 8;
 	if (source->drv->type == SOF_COMP_MODULE_ADAPTER) {
 		struct processing_module *srcmod = comp_mod(source);
 		struct module_config *srccfg = &srcmod->priv.cfg;
@@ -694,6 +715,7 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 		obs = source_src_cfg.obs;
 	}
 
+aaa[2] = 9;
 	if (sink->drv->type == SOF_COMP_MODULE_ADAPTER) {
 		struct processing_module *dstmod = comp_mod(sink);
 		struct module_config *dstcfg = &dstmod->priv.cfg;
@@ -714,6 +736,7 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 		ibs = sink_src_cfg.ibs;
 	}
 
+aaa[2] = 10;
 	/* create a buffer
 	 * in case of LL -> LL or LL->DP
 	 *	The ibs / obs should be equal between components. However, some modules
@@ -731,16 +754,22 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 	else
 		buf_size = ibs * 2;
 
+aaa[2] = 11;
 	buffer = ipc4_create_buffer(source, cross_core_bind, buf_size, bu->extension.r.src_queue,
 				    bu->extension.r.dst_queue, alloc);
+aaa[2] = 12;
 	if (!buffer) {
 		tr_err(&ipc_tr, "failed to allocate buffer to bind %#x to %#x", src_id, sink_id);
 		return IPC4_OUT_OF_MEMORY;
 	}
 
+aaa[2] = 13;
 #if CONFIG_ZEPHYR_DP_SCHEDULER
-	if (alloc)
+	if (alloc) {
+aaa[2] = 14;
 		vregion_get(alloc->vreg);
+aaa[2] = 15;
+	}
 #endif
 
 	/*
@@ -756,6 +785,7 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 	sink_set_min_free_space(audio_buffer_get_sink(&buffer->audio_buffer), obs);
 	source_set_min_available(audio_buffer_get_source(&buffer->audio_buffer), ibs);
 
+aaa[2] = 16;
 #if CONFIG_ZEPHYR_DP_SCHEDULER
 	struct ring_buffer *ring_buffer = NULL;
 
@@ -766,6 +796,7 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 		struct processing_module *dstmod = comp_mod(sink);
 		struct module_data *dst_module_data = &dstmod->priv;
 
+aaa[2] = 17;
 		/*
 		 * Handle cases where the size of the ring buffer depends on the
 		 * in_buff_size/out_buff_size advertised by the module. E.g. in the case of the
@@ -778,14 +809,17 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 						 MAX(obs, src_module_data->mpd.out_buff_size),
 						 audio_buffer_is_shared(&buffer->audio_buffer),
 						 buf_get_id(buffer));
+aaa[2] = 18;
 		if (!ring_buffer) {
 			buffer_free(buffer);
 			return IPC4_OUT_OF_MEMORY;
 		}
 
+aaa[2] = 19;
 		/* data destination module needs to use ring_buffer */
 		audio_buffer_attach_secondary_buffer(&buffer->audio_buffer, dp == source,
 						     &ring_buffer->audio_buffer);
+aaa[2] = 20;
 	}
 
 #endif /* CONFIG_ZEPHYR_DP_SCHEDULER */
@@ -794,25 +828,33 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 	 * blocked on corresponding core(s) to prevent IPC or IDC task getting preempted which
 	 * could result in buffers being only half connected when a pipeline task gets executed.
 	 */
+aaa[2] = 21;
 	ll_block(cross_core_bind, flags);
+aaa[2] = 22;
 
 	if (cross_core_bind) {
+aaa[2] = 23;
 #if CONFIG_CROSS_CORE_STREAM
 		/* Make sure LL has finished on both cores */
 		if (!cpu_is_me(source->ipc_config.core))
 			if (ll_wait_finished_on_core(source) < 0)
 				goto free;
+aaa[2] = 24;
 		if (!cpu_is_me(sink->ipc_config.core))
 			if (ll_wait_finished_on_core(sink) < 0)
 				goto free;
+
+aaa[2] = 25;
 #else
 		tr_err(&ipc_tr, "Cross-core binding is disabled");
 		goto free;
 #endif
 	}
 
+aaa[2] = 26;
 	ret = comp_buffer_connect(source, source->ipc_config.core, buffer,
 				  PPL_CONN_DIR_COMP_TO_BUFFER);
+aaa[2] = 27;
 	if (ret < 0) {
 		tr_err(&ipc_tr, "failed to connect src %#x to internal buffer", src_id);
 		goto free;
@@ -820,6 +862,7 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 
 	ret = comp_buffer_connect(sink, sink->ipc_config.core, buffer,
 				  PPL_CONN_DIR_BUFFER_TO_COMP);
+aaa[2] = 28;
 	if (ret < 0) {
 		tr_err(&ipc_tr, "failed to connect internal buffer to sink %#x", sink_id);
 		goto e_sink_connect;
@@ -829,13 +872,17 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 	bind_data.ipc4_data = bu;
 	bind_data.bind_type = COMP_BIND_TYPE_SINK;
 	bind_data.sink = audio_buffer_get_sink(&buffer->audio_buffer);
+aaa[2] = 29;
 	ret = comp_bind(source, &bind_data);
+aaa[2] = 30;
 	if (ret < 0)
 		goto e_src_bind;
 
 	bind_data.bind_type = COMP_BIND_TYPE_SOURCE;
 	bind_data.source = audio_buffer_get_source(&buffer->audio_buffer);
+aaa[2] = 31;
 	ret = comp_bind(sink, &bind_data);
+aaa[2] = 32;
 	if (ret < 0)
 		goto e_sink_bind;
 
@@ -851,7 +898,9 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 		source->direction_set = true;
 	}
 
+aaa[2] = 33;
 	ll_unblock(cross_core_bind, flags);
+aaa[2] = 34;
 
 	return IPC4_SUCCESS;
 
@@ -865,8 +914,10 @@ e_src_bind:
 e_sink_connect:
 	pipeline_disconnect(source, buffer, PPL_CONN_DIR_COMP_TO_BUFFER);
 free:
+aaa[2] = 35;
 	ll_unblock(cross_core_bind, flags);
 	buffer_free(buffer);
+aaa[2] = 36;
 	return IPC4_INVALID_RESOURCE_STATE;
 }
 

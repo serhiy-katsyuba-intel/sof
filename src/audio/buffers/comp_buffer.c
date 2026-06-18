@@ -156,7 +156,7 @@ static void comp_buffer_free(struct sof_audio_buffer *audio_buffer)
 
 	struct mod_alloc_ctx *alloc = buffer->audio_buffer.alloc;
 
-#ifdef CONFIG_SOF_USERSPACE_LL
+#ifdef CONFIG_USERSPACE	///CONFIG_SOF_USERSPACE_LL
 	assert(alloc);
 	sof_ctx_free(alloc, buffer->stream.addr);
 #else
@@ -255,7 +255,7 @@ struct comp_buffer *buffer_alloc(struct mod_alloc_ctx *alloc, size_t size, uint3
 		return NULL;
 	}
 
-#ifdef CONFIG_SOF_USERSPACE_LL
+#ifdef CONFIG_USERSPACE	/// CONFIG_SOF_USERSPACE_LL
 	assert(alloc);
 	stream_addr = sof_ctx_alloc(alloc, flags, size, align);
 #else
@@ -270,7 +270,7 @@ struct comp_buffer *buffer_alloc(struct mod_alloc_ctx *alloc, size_t size, uint3
 	buffer = buffer_alloc_struct(alloc, stream_addr, size, flags, is_shared);
 	if (!buffer) {
 		tr_err(&buffer_tr, "could not alloc buffer structure");
-#ifdef CONFIG_SOF_USERSPACE_LL
+#ifdef CONFIG_USERSPACE	/// CONFIG_SOF_USERSPACE_LL
 		assert(alloc);
 		sof_ctx_free(alloc, stream_addr);
 #else
@@ -303,7 +303,7 @@ struct comp_buffer *buffer_alloc_range(struct mod_alloc_ctx *alloc, size_t prefe
 		preferred_size += minimum_size - preferred_size % minimum_size;
 
 	for (size = preferred_size; size >= minimum_size; size -= minimum_size) {
-#ifdef CONFIG_SOF_USERSPACE_LL
+#ifdef CONFIG_USERSPACE	/// CONFIG_SOF_USERSPACE_LL
 		assert(alloc);
 		stream_addr = sof_ctx_alloc(alloc, flags, size, align);
 #else
@@ -324,7 +324,7 @@ struct comp_buffer *buffer_alloc_range(struct mod_alloc_ctx *alloc, size_t prefe
 	buffer = buffer_alloc_struct(alloc, stream_addr, size, flags, is_shared);
 	if (!buffer) {
 		tr_err(&buffer_tr, "could not alloc buffer structure");
-#ifdef CONFIG_SOF_USERSPACE_LL
+#ifdef CONFIG_USERSPACE	/// CONFIG_SOF_USERSPACE_LL
 		assert(alloc);
 		sof_ctx_free(alloc, stream_addr);
 #else
@@ -350,7 +350,7 @@ void buffer_zero(struct comp_buffer *buffer)
 int buffer_set_size(struct comp_buffer *buffer, uint32_t size, uint32_t alignment)
 {
 	void *new_ptr = NULL;
-#ifdef CONFIG_SOF_USERSPACE_LL
+#ifdef CONFIG_USERSPACE	/// CONFIG_SOF_USERSPACE_LL
 	struct mod_alloc_ctx *alloc = buffer->audio_buffer.alloc;
 #endif
 
@@ -365,7 +365,7 @@ int buffer_set_size(struct comp_buffer *buffer, uint32_t size, uint32_t alignmen
 	if (size == audio_stream_get_size(&buffer->stream))
 		return 0;
 
-#ifdef CONFIG_SOF_USERSPACE_LL
+#ifdef CONFIG_USERSPACE	/// CONFIG_SOF_USERSPACE_LL
 	assert(alloc);
 	new_ptr = sof_ctx_alloc(alloc, buffer->flags, size, alignment);
 #else
@@ -381,7 +381,7 @@ int buffer_set_size(struct comp_buffer *buffer, uint32_t size, uint32_t alignmen
 
 	/* use bigger chunk, else just use the old chunk but set smaller */
 	if (new_ptr) {
-#ifdef CONFIG_SOF_USERSPACE_LL
+#ifdef CONFIG_USERSPACE	/// CONFIG_SOF_USERSPACE_LL
 		assert(alloc);
 		sof_ctx_free(alloc, audio_stream_get_addr(&buffer->stream));
 #else
@@ -401,7 +401,7 @@ int buffer_set_size_range(struct comp_buffer *buffer, size_t preferred_size, siz
 	const size_t actual_size = audio_stream_get_size(&buffer->stream);
 	void *new_ptr = NULL;
 	size_t new_size;
-#ifdef CONFIG_SOF_USERSPACE_LL
+#ifdef CONFIG_USERSPACE	/// CONFIG_SOF_USERSPACE_LL
 	struct mod_alloc_ctx *alloc = buffer->audio_buffer.alloc;
 #endif
 
@@ -423,7 +423,7 @@ int buffer_set_size_range(struct comp_buffer *buffer, size_t preferred_size, siz
 
 	for (new_size = preferred_size; new_size >= minimum_size;
 	     new_size -= minimum_size) {
-#ifdef CONFIG_SOF_USERSPACE_LL
+#ifdef CONFIG_USERSPACE	/// CONFIG_SOF_USERSPACE_LL
 		assert(alloc);
 		new_ptr = sof_ctx_alloc(alloc, buffer->flags, new_size, alignment);
 #else
@@ -442,7 +442,7 @@ int buffer_set_size_range(struct comp_buffer *buffer, size_t preferred_size, siz
 
 	/* use bigger chunk, else just use the old chunk but set smaller */
 	if (new_ptr) {
-#ifdef CONFIG_SOF_USERSPACE_LL
+#ifdef CONFIG_USERSPACE	/// CONFIG_SOF_USERSPACE_LL
 		assert(alloc);
 		sof_ctx_free(alloc, audio_stream_get_addr(&buffer->stream));
 #else
