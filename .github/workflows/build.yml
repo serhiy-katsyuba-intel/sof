@@ -106,6 +106,7 @@ jobs:
           git config --global --add safe.directory "${PWD}/zephyr"
           git config --global --add safe.directory "${PWD}/sof"
           git config --global --add safe.directory "${PWD}/.."
+          git config --global --add safe.directory "${PWD}/sof/tools/rimage/tomlc99"
 
           # Allow west to conenct to intel-innersource/os.rtos.zephyr.zephyr
           echo -e "https://$GH_TOKEN:$GH_TOKEN@github.com/intel-innersource/os.rtos.zephyr.zephyr" >> $HOME/.git-credentials
