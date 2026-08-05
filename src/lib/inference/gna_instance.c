@@ -735,6 +735,11 @@ static int gna_request_allocate_buffs(struct gna_instance_data *gna)
 		goto in_err;
 	}
 
+	/* GNA only writes the scored elements, the alignment padding must not expose
+	 * stale heap content to the client.
+	 */
+	memset(req_ctx->output_buffer, 0, req_ctx->model->output_buffer_size);
+
 	if (req_ctx->model->state_buffer_size) {
 		req_ctx->state_buffer = rballoc_align(SOF_MEM_FLAG_USER,
 						      req_ctx->model->state_buffer_size,
