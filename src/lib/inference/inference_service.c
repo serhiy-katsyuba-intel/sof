@@ -180,6 +180,7 @@ int inference_model_init(struct inference_model *model,
 
 model_err:
 	rfree(gna->model_ctx);
+	gna->model_ctx = NULL;
 	return ret;
 }
 EXPORT_SYMBOL(inference_model_init);
@@ -205,6 +206,7 @@ int inference_model_release(struct gna_instance_data *gna)
 	}
 
 	rfree(gna->model_ctx);
+	gna->model_ctx = NULL;
 
 	return 0;
 }
@@ -247,6 +249,7 @@ int inference_request_init(struct gna_instance_data *gna, uint32_t request_ctx_s
 
 req_err:
 	rfree(gna->request_ctx);
+	gna->request_ctx = NULL;
 	return ret;
 }
 EXPORT_SYMBOL(inference_request_init);
@@ -363,6 +366,7 @@ int inference_request_release(struct gna_instance_data *gna)
 	gna_request_release(gna);
 
 	rfree(gna->request_ctx);
+	gna->request_ctx = NULL;
 
 	return 0;
 }
