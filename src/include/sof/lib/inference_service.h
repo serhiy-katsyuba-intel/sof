@@ -179,6 +179,22 @@ struct gna_instance_data *inference_init(void);
  */
 const struct device *inference_get_device_by_instance(uint32_t instance);
 
+/*! @brief Gets the number of GNA device instances available on the platform.
+ *
+ * @returns Number of GNA device instances.
+ */
+uint32_t inference_get_device_count(void);
+
+/*! @brief Retrieves the GNA HW version required by a model.
+ *
+ * The version is read from the GnaHwVersion TLV record of the model blob and
+ * converted to the ACE HW version number reported by gna_capabilities::version.
+ *
+ * @param model pointer to neural network model.
+ * @returns ACE HW version (e.g. 45), or 0 if unknown or not present.
+ */
+uint32_t inference_model_get_required_hw_version(const struct inference_model *model);
+
 /**
  * @brief Frees the resources used by the GNA inference service.
  *

@@ -51,7 +51,7 @@ static void gna_lock_init(struct gna_instance_data *gna)
  * Convert GNA lib device version enum to ACE HW version number.
  * Model TLV stores lib enum (e.g. 0x45E), driver caps store ACE number (e.g. 45).
  */
-static uint32_t gna_lib_to_ace_version(uint32_t lib_ver)
+uint32_t gna_lib_to_ace_version(uint32_t lib_ver)
 {
 	switch (lib_ver) {
 	case Gna2DeviceVersionEmbedded3_5:

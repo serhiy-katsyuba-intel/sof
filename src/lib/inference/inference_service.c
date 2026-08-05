@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <sof/ipc/topology.h>
 #include <sof/lib/gna/gna2-tlv.h>
+#include <sof/lib/gna/gna2-tlv-reader.h>
 #include <sof/lib/inference_service.h>
 #include <sof/lib/memory.h>
 #include <sof/lib/uuid.h>
@@ -54,7 +55,31 @@ const struct device *inference_get_device_by_instance(uint32_t instance)
 	return gna_z_dev[instance];
 }
 EXPORT_SYMBOL(inference_get_device_by_instance);
+
+uint32_t inference_get_device_count(void)
+{
+	return ARRAY_SIZE(gna_z_dev);
+}
+EXPORT_SYMBOL(inference_get_device_count);
 #endif /* CONFIG_ZEPHYR_NATIVE_DRIVERS */
+
+uint32_t inference_model_get_required_hw_version(const struct inference_model *model)
+{
+	uint32_t *value = NULL;
+	uint32_t val_size = 0;
+	Gna2TlvStatus status;
+
+	if (!model || !model->data)
+		return 0;
+
+	status = Gna2TlvFindInArray(model->data, model->size, Gna2TlvTypeGnaHwVersion,
+				    &val_size, (void **)&value);
+	if (status || val_size != sizeof(uint32_t))
+		return 0;
+
+	return gna_lib_to_ace_version(*value);
+}
+EXPORT_SYMBOL(inference_model_get_required_hw_version);
 
 struct gna_instance_data *inference_init(void)
 {

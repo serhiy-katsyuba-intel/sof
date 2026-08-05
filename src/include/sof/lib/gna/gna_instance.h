@@ -107,6 +107,14 @@ int32_t gna_model_parse_tlv(struct gna_instance_data *gna);
 static bool gna_check_hw_version(uint32_t model_lib_ver, uint32_t dev_ace_ver);
 
 /**
+ * Converts a GNA library device version enum to the ACE HW version number.
+ *
+ * @param lib_ver The GNA lib device version (e.g. Gna2DeviceVersionEmbedded4_5).
+ * @return The ACE HW version number (e.g. 45), or 0 if the version is unknown.
+ */
+uint32_t gna_lib_to_ace_version(uint32_t lib_ver);
+
+/**
  * Gets the size of the common scratch memory used by the GNA instance.
  *
  * @param gna The GNA instance data.
