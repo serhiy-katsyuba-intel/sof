@@ -652,6 +652,11 @@ static void gna_request_done_cb(const struct device *dev, void *context,
 
 	gna_request_register(ctx, false);
 
+	/* GNA wrote the results behind the core's back, drop any cached lines. */
+	sys_cache_data_invd_range(ctx->output_buffer, ctx->model->output_buffer_size);
+	if (ctx->model->state_buffer_size)
+		sys_cache_data_invd_range(ctx->state_buffer, ctx->model->state_buffer_size);
+
 	ctx->cached_request_status = status;
 	ctx->in_progress = false;
 
