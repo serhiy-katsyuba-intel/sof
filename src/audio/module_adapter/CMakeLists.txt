@@ -73,6 +73,10 @@ endif()
 		library/native_system_service.c
 	)
 
+	if(CONFIG_INTEL_MODULES AND CONFIG_INFERENCE_SERVICE)
+		zephyr_library_sources(iadk/inference_service_provider.cpp)
+	endif()
+
 	zephyr_library_sources_ifdef(CONFIG_SOF_USERSPACE_PROXY
 		library/userspace_proxy.c
 		library/userspace_proxy_user.c
