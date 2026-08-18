@@ -62,6 +62,11 @@ static int gna_test_prepare_request(struct processing_module *mod,
 	comp_info(dev, "Model ctx buffer sizes: input=%d, output=%d, state=%d",
 		  model_in_buff_size, gna_model_get_output_buff_size(gna_data->gna->model_ctx),
 		  gna_model_get_state_buff_size(gna_data->gna->model_ctx));
+	comp_info(dev, "GNA buffers: model=%p, input=%p, output=%p, scratch=%p",
+		  (const void *)gna_data->gna->model_ctx->model_data,
+		  (void *)gna_data->gna->request_ctx->input_buffer,
+		  (void *)gna_data->gna->request_ctx->output_buffer,
+		  (void *)gna_data->gna->model_ctx->scratch_ptr);
 
 	ret = memcpy_s(gna_data->gna->request_ctx->input_buffer, model_in_buff_size,
 		       gna_data->builtin_data->in_buff,
@@ -153,6 +158,46 @@ static int gna_test_execute_async(struct processing_module *mod,
 	ret = gna_test_verify(mod, gna_data);
 	if (ret)
 		comp_err(mod->dev, "Failed to verify GNA request");
+
+release:
+	inference_request_release(gna_data->gna);
+
+	return ret;
+}
+
+static int gna_test_execute_yield(struct processing_module *mod,
+				  struct gna_test_data *gna_data)
+{
+	struct comp_dev *dev = mod->dev;
+	int request_status;
+	int ret;
+
+	comp_info(dev, "Executing GNA test in yield mode");
+
+	ret = gna_test_prepare_request(mod, gna_data);
+	if (ret) {
+		comp_err(dev, "Failed to prepare GNA request");
+		return ret;
+	}
+
+	comp_info(dev, "Starting inference request in yield mode");
+	ret = inference_request_start_yield(gna_data->gna);
+	if (ret) {
+		comp_err(dev, "Failed to start GNA request in yield mode");
+		goto release;
+	}
+
+	request_status = inference_request_query_status(gna_data->gna);
+	if (request_status != REQUEST_SUCCESS) {
+		comp_err(dev, "GNA yield request completed with status %d", request_status);
+		ret = -EIO;
+		goto release;
+	}
+
+	comp_info(dev, "Verifying GNA yield request and cleaning up");
+	ret = gna_test_verify(mod, gna_data);
+	if (ret)
+		comp_err(dev, "Failed to verify GNA yield request");
 
 release:
 	inference_request_release(gna_data->gna);
@@ -297,15 +342,21 @@ static int tester_gna_test(struct processing_module *mod)
 	for (passed_iter = 0; passed_iter < test_data.iterations; passed_iter++) {
 		comp_info(dev, "Running GNA test iteration %d", passed_iter);
 
-		if (test_data.test_mode != async) {
-			comp_err(dev, "Yield mode is not supported yet");
+		switch (test_data.test_mode) {
+		case async:
+			ret = gna_test_execute_async(mod, &test_data);
+			break;
+		case yield:
+			ret = gna_test_execute_yield(mod, &test_data);
+			break;
+		default:
+			comp_err(dev, "Unsupported GNA test mode %d", test_data.test_mode);
 			ret = -EINVAL;
-			goto cleanup;
+			break;
 		}
 
-		ret = gna_test_execute_async(mod, &test_data);
 		if (ret) {
-			comp_err(dev, "Failed to execute GNA test async mode");
+			comp_err(dev, "Failed to execute GNA test mode %d", test_data.test_mode);
 			goto cleanup;
 		}
 	}
