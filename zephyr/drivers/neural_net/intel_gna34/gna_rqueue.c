@@ -82,7 +82,7 @@ ErrorCode gna_rqueue_push(gna_device *self, gna_request_internal *request)
 	gna_rqueue_unlock(self);
 
 	queue_head->request = request;
-	queue_head->request->core_id = 0; /* TODO: arch_cpu_get_current_cpu_id(); */
+	queue_head->request->core_id = arch_proc_id();
 	queue_head->state = GNA_RQUEUE_EL_WAIT;
 
 	return ADSP_SUCCESS;

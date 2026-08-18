@@ -19,7 +19,7 @@
 
 /* GNA related constants */
 #define MAX_TRACKED_MODELS 32
-#define MAX_GNA_SCRATCH (MAX_TRACKED_MODELS * 1024)
+#define MAX_GNA_SCRATCH (32 * 1024)
 #define GNA_HEADER_SIZE 64
 #define IDX_NOT_FOUND 0xFFFF
 #define GNA_SERVICE_UUID_OFFSET 0x00414E4700000000ULL
@@ -56,18 +56,23 @@ struct gna_instance_cfg {
 
 struct gna_instance_data {
 	const struct device *dev;		   /**< Pointer to the GNA driver */
+	uint32_t dev_instance;		   /**< Physical GNA device instance index */
 	struct model_ref refs[MAX_TRACKED_MODELS]; /**< Array of model references */
 	uint8_t *common_scratch;		   /**< Ptr to common scratch memory */
 	uint32_t common_scratch_size;	 	   /**< Size of the common scratch memory */
 	struct list_item gna_model_list; 	   /**< Linked list of GNA models */
-
-	struct gna_model_ctx *model_ctx;
-	struct gna_request_ctx *request_ctx;
-
-#ifdef __ZEPHYR__
+	struct list_item gna_request_list;    /**< Linked list of live GNA requests */
 	struct k_mutex lock;
-#endif
 };
+
+/**
+ * @brief Initializes a per-device GNA backend instance.
+ *
+ * @param gna Backend instance to initialize.
+ */
+void gna_instance_init(struct gna_instance_data *gna);
+void gna_lock(struct gna_instance_data *gna);
+void gna_unlock(struct gna_instance_data *gna);
 
 
 /************************* GNA Model related methods **************************/
@@ -78,7 +83,7 @@ struct gna_instance_data {
  * @param gna The GNA instance data.
  * @return 0 on success, otherwise an error code.
  */
-int gna_add_model(struct gna_instance_data *gna);
+int gna_add_model(struct gna_instance_data *gna, struct gna_model_ctx *model_ctx);
 
 /**
  * Removes a GNA model from the GNA instance.
@@ -86,7 +91,7 @@ int gna_add_model(struct gna_instance_data *gna);
  * @param gna The GNA instance data.
  * @return 0 on success, otherwise an error code.
  */
-int gna_remove_model(struct gna_instance_data *gna);
+int gna_remove_model(struct gna_instance_data *gna, struct gna_model_ctx *model_ctx);
 
 /**
  * Parses the TLV (Type-Length-Value) data of a GNA model.
@@ -94,7 +99,8 @@ int gna_remove_model(struct gna_instance_data *gna);
  * @param gna The GNA instance data.
  * @return 0 on success, otherwise a status code.
  */
-int32_t gna_model_parse_tlv(struct gna_instance_data *gna);
+int32_t gna_model_parse_tlv(struct gna_instance_data *gna,
+			    struct gna_model_ctx *model_ctx);
 
 /**
  * Checks if the model HW version matches the actual GNA device.
@@ -133,19 +139,6 @@ static size_t gna_get_used_common_scratch(struct gna_instance_data *gna);
  */
 size_t gna_model_get_extra_scratch(const uint8_t *model_data, size_t model_size);
 
-/**
- * @brief Resize common scratch memory.
- *
- * This function resizes the common scratch memory used by the GNA instance.
- *
- * @param gna The GNA instance data.
- * @param old_size The old size of the common scratch memory.
- * @param new_size The new size of the common scratch memory.
- * @return 0 on success, a negative error code otherwise.
- */
-int gna_set_common_scratch(struct gna_instance_data *gna, size_t old_size,
-			   size_t new_size);
-
 /*********************** GNA Request related methods *************************/
 
 /**
@@ -166,7 +159,7 @@ size_t gna_request_get_size(struct gna_model_ctx *model_ctx);
  * @param gna The GNA instance data.
  * @return 0 on success, a negative error code otherwise.
  */
-int gna_request_init(struct gna_instance_data *gna);
+int gna_request_init(struct gna_instance_data *gna, struct gna_request_ctx *req_ctx);
 
 /**
  * @brief Reset a GNA request.
@@ -176,7 +169,7 @@ int gna_request_init(struct gna_instance_data *gna);
  * @param gna The GNA instance data.
  * @return 0 on success, a negative error code otherwise.
  */
-int gna_request_reset(struct gna_instance_data *gna);
+int gna_request_reset(struct gna_instance_data *gna, struct gna_request_ctx *req_ctx);
 
 /**
  * @brief Allocate buffers for a GNA request.
@@ -186,7 +179,8 @@ int gna_request_reset(struct gna_instance_data *gna);
  * @param gna The GNA instance data.
  * @return 0 on success, a negative error code otherwise.
  */
-static int gna_request_allocate_buffs(struct gna_instance_data *gna);
+static int gna_request_allocate_buffs(struct gna_instance_data *gna,
+					      struct gna_request_ctx *req_ctx);
 
 /**
  * @brief Free buffers of a GNA request.
@@ -195,7 +189,7 @@ static int gna_request_allocate_buffs(struct gna_instance_data *gna);
  *
  * @param gna The GNA instance data.
  */
-static void gna_request_free_buffs(struct gna_instance_data *gna);
+static void gna_request_free_buffs(struct gna_request_ctx *req_ctx);
 
 /**
  * Starts a GNA request.
@@ -206,7 +200,7 @@ static void gna_request_free_buffs(struct gna_instance_data *gna);
  * @param gna The GNA instance data.
  * @return 0 on success, negative error code on failure.
  */
-int gna_request_start(struct gna_instance_data *gna);
+int gna_request_start(struct gna_instance_data *gna, struct gna_request_ctx *req_ctx);
 
 /**
  * Registers a GNA request.
@@ -227,7 +221,8 @@ static void gna_request_register(struct gna_request_ctx *req_ctx, bool reg);
  * @param gna The GNA instance data.
  * @return The status of the GNA request.
  */
-gna_request_status gna_request_get_status(struct gna_instance_data *gna);
+gna_request_status gna_request_get_status(struct gna_instance_data *gna,
+					  struct gna_request_ctx *req_ctx);
 
 /**
  * Callback function called when a GNA request is done.
@@ -246,16 +241,6 @@ static void gna_request_done_cb(const struct device *dev, void *context,
 				uint32_t hw_status);
 
 /**
- * Callback function called to block a GNA request.
- *
- * This function is called to block a GNA request until it is completed.
- *
- * @param gna The GNA instance data.
- * @return True if the request should be blocked, false otherwise.
- */
-static bool gna_request_block_cb(struct gna_instance_data *gna);
-
-/**
  * Releases a GNA request.
  *
  * This function releases a GNA request context.
@@ -263,7 +248,7 @@ static bool gna_request_block_cb(struct gna_instance_data *gna);
  * @param gna The GNA instance data.
  * @return 0 on success, negative error code on failure.
  */
-int gna_request_release(struct gna_instance_data *gna);
+int gna_request_release(struct gna_instance_data *gna, struct gna_request_ctx *req_ctx);
 
 /**
  * Starts a GNA request and blocks until it is completed.
@@ -274,6 +259,7 @@ int gna_request_release(struct gna_instance_data *gna);
  * @param gna The GNA instance data.
  * @return 0 on success, negative error code on failure.
  */
-int gna_request_start_and_block(struct gna_instance_data *gna);
+int gna_request_start_and_block(struct gna_instance_data *gna,
+				struct gna_request_ctx *req_ctx);
 
 #endif /* __SOF_LIB_GNA_INSTANCE_H__ */

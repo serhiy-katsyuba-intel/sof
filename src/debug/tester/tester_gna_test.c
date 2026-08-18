@@ -25,6 +25,8 @@
 
 LOG_MODULE_REGISTER(tester_gna, CONFIG_SOF_LOG_LEVEL);
 
+static int gna_test_release_request(struct gna_test_data *gna_data);
+
 /*
  * This is a simple test case for GNA inference
  * The test case will run a GNA inference request
@@ -35,40 +37,71 @@ static int gna_test_prepare_request(struct processing_module *mod,
 				    struct gna_test_data *gna_data)
 {
 	struct comp_dev *dev = mod->dev;
+	struct gna_request_ctx *request_ctx;
+	uint8_t *input_buffer, *output_buffer, *state_buffer;
+	size_t input_buffer_size, output_buffer_size, state_buffer_size;
 	uint32_t request_ctx_size, model_in_buff_size;
 	int ret;
 
-	request_ctx_size = inference_get_request_ctx_size(gna_data->gna->model_ctx);
+	request_ctx_size = inference_get_request_ctx_size(gna_data->model_ctx);
 	if (request_ctx_size > GNA_REQUEST_CTX_MEM_MAX_SIZE) {
 		comp_err(dev, "Request context size is too big!");
 		return -EINVAL;
 	}
 
-	comp_info(mod->dev, "Inference request initialization. Request ctx size: %d",
-		  request_ctx_size);
-
-	ret = inference_request_init(gna_data->gna, request_ctx_size);
-	if (ret) {
-		comp_err(dev, "Failed to initialize GNA request");
-		return -EINVAL;
-	}
-
-	model_in_buff_size = gna_model_get_input_buff_size(gna_data->gna->model_ctx);
+	model_in_buff_size = gna_model_get_input_buff_size(gna_data->model_ctx);
 	if (gna_data->builtin_data->in_buff_size > model_in_buff_size) {
 		comp_err(dev, "Builtin input buffer size is too big!");
 		return -EINVAL;
 	}
 
-	comp_info(dev, "Model ctx buffer sizes: input=%d, output=%d, state=%d",
-		  model_in_buff_size, gna_model_get_output_buff_size(gna_data->gna->model_ctx),
-		  gna_model_get_state_buff_size(gna_data->gna->model_ctx));
-	comp_info(dev, "GNA buffers: model=%p, input=%p, output=%p, scratch=%p",
-		  (const void *)gna_data->gna->model_ctx->model_data,
-		  (void *)gna_data->gna->request_ctx->input_buffer,
-		  (void *)gna_data->gna->request_ctx->output_buffer,
-		  (void *)gna_data->gna->model_ctx->scratch_ptr);
+	request_ctx = rzalloc(SOF_MEM_FLAG_USER, request_ctx_size);
+	if (!request_ctx) {
+		comp_err(dev, "Failed to allocate GNA request context");
+		return -ENOMEM;
+	}
 
-	ret = memcpy_s(gna_data->gna->request_ctx->input_buffer, model_in_buff_size,
+	comp_info(mod->dev, "Inference request initialization. Request ctx size: %d",
+		  request_ctx_size);
+
+	ret = inference_request_init(gna_data->model_ctx, request_ctx);
+	if (ret) {
+		comp_err(dev, "Failed to initialize GNA request");
+		rfree(request_ctx);
+		return -EINVAL;
+	}
+
+	gna_data->request_ctx = request_ctx;
+	ret = inference_request_get_input(request_ctx, &input_buffer, &input_buffer_size);
+	if (ret || input_buffer_size < model_in_buff_size) {
+		comp_err(dev, "Failed to get GNA input buffer");
+		gna_test_release_request(gna_data);
+		return -EINVAL;
+	}
+	ret = inference_request_get_output(request_ctx, &output_buffer, &output_buffer_size);
+	if (ret || output_buffer_size != gna_model_get_output_buff_size(gna_data->model_ctx)) {
+		comp_err(dev, "Failed to get GNA output buffer");
+		gna_test_release_request(gna_data);
+		return -EINVAL;
+	}
+	ret = inference_request_get_state(request_ctx, &state_buffer, &state_buffer_size);
+	if (ret || state_buffer_size != gna_model_get_state_buff_size(gna_data->model_ctx)) {
+		comp_err(dev, "Failed to get GNA state buffer");
+		gna_test_release_request(gna_data);
+		return -EINVAL;
+	}
+
+	comp_info(dev, "Model ctx buffer sizes: input=%d, output=%d, state=%d",
+		  model_in_buff_size, gna_model_get_output_buff_size(gna_data->model_ctx),
+		  gna_model_get_state_buff_size(gna_data->model_ctx));
+	comp_info(dev, "GNA buffers: model=%p, input=%p, output=%p, state=%p, scratch=%p",
+		  (const void *)gna_data->model_ctx->model_data,
+		  (void *)input_buffer,
+		  (void *)output_buffer,
+		  (void *)state_buffer,
+		  (void *)gna_data->model_ctx->scratch_ptr);
+
+	ret = memcpy_s(input_buffer, input_buffer_size,
 		       gna_data->builtin_data->in_buff,
 		       gna_data->builtin_data->in_buff_size);
 	assert(!ret);
@@ -83,9 +116,16 @@ static inline const uint8_t *gna_test_get_ref_buff(struct gna_test_data *gna_dat
 
 static int gna_test_verify(struct processing_module *mod, struct gna_test_data *gna_data)
 {
-	const uint8_t *out_buff = gna_request_get_output_buff(gna_data->gna->request_ctx);
+	uint8_t *out_buff;
+	size_t out_buff_size;
 	const uint8_t *ref_buff = gna_test_get_ref_buff(gna_data);
 	struct comp_dev *dev = mod->dev;
+	int ret;
+
+	ret = inference_request_get_output(gna_data->request_ctx, &out_buff,
+					   &out_buff_size);
+	if (ret || out_buff_size < gna_data->builtin_data->ref_buff_size)
+		return -EINVAL;
 
 	for (size_t i = 0; i < gna_data->builtin_data->ref_buff_size; i++) {
 		if (out_buff[i] != ref_buff[i]) {
@@ -105,13 +145,29 @@ static int gna_test_unload_model_cleanup(struct processing_module *mod,
 {
 	int ret = 0;
 
-	if (gna_data->gna->model_ctx) {
-		ret = inference_model_release(gna_data->gna);
+	if (gna_data->model_ctx) {
+		ret = inference_model_release(gna_data->model_ctx);
 		if (ret)
 			comp_err(mod->dev, "Failed to release GNA model");
+		else {
+			rfree(gna_data->model_ctx);
+			gna_data->model_ctx = NULL;
+		}
 	}
 
-	inference_free(gna_data->gna);
+	return ret;
+}
+
+static int gna_test_release_request(struct gna_test_data *gna_data)
+{
+	int ret;
+
+	if (!gna_data->request_ctx)
+		return 0;
+
+	ret = inference_request_release(gna_data->request_ctx);
+	rfree(gna_data->request_ctx);
+	gna_data->request_ctx = NULL;
 
 	return ret;
 }
@@ -133,14 +189,14 @@ static int gna_test_execute_async(struct processing_module *mod,
 	}
 
 	comp_info(mod->dev, "Starting infernece request in async mode");
-	ret = inference_request_start_async(gna_data->gna);
+	ret = inference_request_start_async(gna_data->request_ctx);
 	if (ret) {
 		comp_err(dev, "Failed to start GNA request");
 		goto release;
 	}
 
 	for (retries = GNA_REQUEST_POLL_RETRIES; retries > 0; retries--) {
-		request_status = inference_request_query_status(gna_data->gna);
+		request_status = inference_request_query_status(gna_data->request_ctx);
 		if (request_status != REQUEST_PENDING)
 			break;
 
@@ -160,7 +216,12 @@ static int gna_test_execute_async(struct processing_module *mod,
 		comp_err(mod->dev, "Failed to verify GNA request");
 
 release:
-	inference_request_release(gna_data->gna);
+	{
+		int release_ret = gna_test_release_request(gna_data);
+
+		if (!ret)
+			ret = release_ret;
+	}
 
 	return ret;
 }
@@ -181,13 +242,13 @@ static int gna_test_execute_yield(struct processing_module *mod,
 	}
 
 	comp_info(dev, "Starting inference request in yield mode");
-	ret = inference_request_start_yield(gna_data->gna);
+	ret = inference_request_start_yield(gna_data->request_ctx);
 	if (ret) {
 		comp_err(dev, "Failed to start GNA request in yield mode");
 		goto release;
 	}
 
-	request_status = inference_request_query_status(gna_data->gna);
+	request_status = inference_request_query_status(gna_data->request_ctx);
 	if (request_status != REQUEST_SUCCESS) {
 		comp_err(dev, "GNA yield request completed with status %d", request_status);
 		ret = -EIO;
@@ -200,7 +261,12 @@ static int gna_test_execute_yield(struct processing_module *mod,
 		comp_err(dev, "Failed to verify GNA yield request");
 
 release:
-	inference_request_release(gna_data->gna);
+	{
+		int release_ret = gna_test_release_request(gna_data);
+
+		if (!ret)
+			ret = release_ret;
+	}
 
 	return ret;
 }
@@ -209,10 +275,11 @@ static int gna_test_load_model(struct processing_module *mod,
 			       struct gna_test_data *gna_data)
 {
 	struct comp_dev *dev = mod->dev;
+	struct gna_model_ctx *model_ctx;
 	uint32_t model_ctx_size;
 	int ret;
 
-	if (!IS_ALIGNED(gna_data->gna_model.size, gna_data->gna_model.model_alignment)) {
+	if (!IS_ALIGNED((uintptr_t)gna_data->gna_model.data, GNA_MODEL_MEMORY_ALIGNMENT)) {
 		comp_err(dev, "Model is not aligned!");
 		return -EINVAL;
 	}
@@ -223,15 +290,23 @@ static int gna_test_load_model(struct processing_module *mod,
 		return -EINVAL;
 	}
 
+	model_ctx = rzalloc(SOF_MEM_FLAG_USER, model_ctx_size);
+	if (!model_ctx) {
+		comp_err(dev, "Failed to allocate GNA model context");
+		return -ENOMEM;
+	}
+
 	comp_info(mod->dev, "Inference model initialization. Model ctx size: %d",
 		  model_ctx_size);
 
-	ret = inference_model_init(&gna_data->gna_model, gna_data->gna, model_ctx_size,
-				   gna_data->gna_dev_instance);
+	ret = inference_model_init(&gna_data->gna_model, gna_data->gna, model_ctx, NULL);
 	if (ret) {
 		comp_err(dev, "Failed to initialize GNA model");
+		rfree(model_ctx);
 		return -EINVAL;
 	}
+
+	gna_data->model_ctx = model_ctx;
 
 	return 0;
 }
@@ -311,9 +386,9 @@ static int tester_gna_test(struct processing_module *mod)
 		.builtin_data = &gna_models[ipc_data->model_id],
 		.test_mode = ipc_data->test_mode,
 		.iterations = ipc_data->test_iterations,
-		.gna_model = {GNA_MODEL_MEMORY_ALIGNMENT,
-				gna_models[ipc_data->model_id].model,
-				gna_models[ipc_data->model_id].model_size}};
+		.gna_model = {
+			.data = gna_models[ipc_data->model_id].model,
+			.size = gna_models[ipc_data->model_id].model_size}};
 
 	ret = gna_test_select_instance(mod, &test_data.gna_model, ipc_data->model_id,
 				       &test_data.gna_dev_instance);
@@ -322,11 +397,9 @@ static int tester_gna_test(struct processing_module *mod)
 		return ret;
 	}
 
-	comp_info(dev, "Initializing IES for GNA test");
-
-	test_data.gna = inference_init();
+	test_data.gna = inference_get_instance(test_data.gna_dev_instance);
 	if (!test_data.gna) {
-		comp_err(dev, "Failed to initialize IES");
+		comp_err(dev, "Failed to select initialized GNA backend");
 		return -EINVAL;
 	}
 

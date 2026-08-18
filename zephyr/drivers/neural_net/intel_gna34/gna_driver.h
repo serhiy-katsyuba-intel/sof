@@ -26,6 +26,7 @@
 #if CONFIG_INTEL_GNA34
 
 #include <drivers/intel_gna34.h>
+#include <zephyr/kernel.h>
 #include "regs_gna_descriptor.h"
 #include "gna_sizeof.h"
 
@@ -37,6 +38,7 @@ typedef struct _shmid_s {
 #endif /* CONFIG_INTEL_GNA34_SHARED */
 
 typedef struct _gna_device {
+	struct k_spinlock lock;
 #if CONFIG_INTEL_GNA34_SHARED
     /*  Shared memory descriptor. */
 DCACHE_ALIGN

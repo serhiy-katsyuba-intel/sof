@@ -47,24 +47,11 @@
 #include "gna_request_db.h"
 
 /* Driver's internal functions */
-#if CONFIG_INTEL_GNA34_SHARED
-#if CONFIG_MULTICORE && CONFIG_SMP
-#define GNA_DEVICE_LOCK					\
-	{						\
-		shm_acquire_with_cs(&self->shm);	\
-	}
-#define GNA_DEVICE_UNLOCK			\
-	{					\
-		shm_release(&self->shm);	\
-	}
-#else
-#define GNA_DEVICE_LOCK   ENTER_CRITICAL_SECTION(GNA)
-#define GNA_DEVICE_UNLOCK LEAVE_CRITICAL_SECTION(GNA)
-#endif /* CONFIG_MULTICORE && CONFIG_SMP */
-#else
-#define GNA_DEVICE_LOCK
-#define GNA_DEVICE_UNLOCK
-#endif /* CONFIG_INTEL_GNA34_SHARED */
+
+/* The key must stay function local, the device lock is never taken recursively. */
+#define GNA_DEVICE_LOCK_KEY k_spinlock_key_t gna_lock_key
+#define GNA_DEVICE_LOCK     (gna_lock_key = k_spin_lock(&self->lock))
+#define GNA_DEVICE_UNLOCK   k_spin_unlock(&self->lock, gna_lock_key)
 
 /* Wrapper for system time function */
 static inline uint64_t gna_device_get_sys_time(void)
@@ -248,8 +235,14 @@ void gna_device_process_isr(struct device *dev)
 	gna_request_internal *reqInternal;
 	gna_request_internal *newReqInt;
 	gna_request *request;
+	pfn_gna_request_done callback;
+	void *callback_context;
+	uint32_t callback_request_id;
+	gna_request_status callback_status;
+	uint32_t callback_hw_status;
 	gna_device *self = (gna_device *)dev->data;
 	uint32_t gna_base_addr = self->base_addr;
+	GNA_DEVICE_LOCK_KEY;
 
 	/* Shared IRQ: skip if not actively processing */
 	if (!self->queue_processing_active)
@@ -322,11 +315,18 @@ void gna_device_process_isr(struct device *dev)
 		gna_device_power_off(self);
 	}
 
+	callback = reqInternal->callbackFn;
+	callback_context = reqInternal->context;
+	callback_request_id = request->request_id;
+	callback_status = reqInternal->status;
+	callback_hw_status = reqInternal->hw_status;
+	GNA_DEVICE_UNLOCK;
+
 	/* call callback function with processed request info. */
-	reqInternal->callbackFn(dev, reqInternal->context, request->request_id, reqInternal->status,
-				reqInternal->hw_status);
+	callback(dev, callback_context, callback_request_id, callback_status, callback_hw_status);
 
 	/* return internal request to pool */
+	GNA_DEVICE_LOCK;
 	gna_request_db_free(self, reqInternal);
 	GNA_DEVICE_UNLOCK;
 }
@@ -406,6 +406,7 @@ ErrorCode gna_device_get_caps(const struct device *dev, gna_capabilities *caps)
 	RETURN_EC_ON_FAIL((caps != NULL), ADSP_ERROR_NULL_POINTER_AS_PARAM);
 
 	gna_device *self = (gna_device *)dev->data;
+	GNA_DEVICE_LOCK_KEY;
 
 	RETURN_EC_ON_FAIL((self != NULL), ADSP_ERROR_NULL_POINTER_AS_PARAM);
 
@@ -445,6 +446,7 @@ int gna_device_init(const struct device *dev)
 
 	gna_device *self = (gna_device *)dev->data;
 	const struct gna_driver_config *config = dev->config;
+	GNA_DEVICE_LOCK_KEY;
 
 	RETURN_EC_ON_FAIL((self != NULL), ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	/*
@@ -498,6 +500,9 @@ int gna_device_init(const struct device *dev)
 
 	self->capabilities.mmu_enabled = adsphal_gna_get_mmu_present(gna_base_addr);
 	/* This version support only mmu disabled mode, change */
+	if (self->capabilities.mmu_enabled != 0) {
+		GNA_DEVICE_UNLOCK;
+	}
 	RETURN_EC_ON_FAIL((self->capabilities.mmu_enabled == 0),
 			  ADSP_GNA_HW_NOT_COMPATIBLE);
 
@@ -564,6 +569,7 @@ ErrorCode gna_init_model(const struct device *dev, gna_model_id **model_id, void
 {
 	RETURN_EC_ON_FAIL((dev != NULL), ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	gna_device *self = (gna_device *)dev->data;
+	GNA_DEVICE_LOCK_KEY;
 
 	RETURN_EC_ON_FAIL(self != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	RETURN_EC_ON_FAIL(model_id != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
@@ -610,6 +616,7 @@ ErrorCode gna_setup_model(const struct device *dev, gna_model_id *model_id,
 {
 	RETURN_EC_ON_FAIL((dev != NULL), ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	gna_device *self = (gna_device *)dev->data;
+	GNA_DEVICE_LOCK_KEY;
 
 	RETURN_EC_ON_FAIL(self != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	RETURN_EC_ON_FAIL(model_id != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
@@ -689,6 +696,7 @@ ErrorCode gna_destroy_model(const struct device *dev, const gna_model_id *model_
 {
 	RETURN_EC_ON_FAIL((dev != NULL), ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	gna_device *self = (gna_device *)dev->data;
+	GNA_DEVICE_LOCK_KEY;
 
 	RETURN_EC_ON_FAIL(self != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	RETURN_EC_ON_FAIL(model_id != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
@@ -711,6 +719,7 @@ ErrorCode gna_get_model(const struct device *dev, gna_model_id **model_id,
 {
 	RETURN_EC_ON_FAIL((dev != NULL), ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	gna_device *self = (gna_device *)dev->data;
+	GNA_DEVICE_LOCK_KEY;
 
 	RETURN_EC_ON_FAIL(self != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	RETURN_EC_ON_FAIL(model_id != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
@@ -745,6 +754,7 @@ ErrorCode gna_init_request(const struct device *dev, gna_request *request,
 
 	RETURN_EC_ON_FAIL((dev != NULL), ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	gna_device *self = (gna_device *)dev->data;
+	GNA_DEVICE_LOCK_KEY;
 
 	RETURN_EC_ON_FAIL(self != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	RETURN_EC_ON_FAIL(request != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
@@ -828,6 +838,7 @@ ErrorCode gna_request_enqueue(const struct device *dev, const gna_request *reque
 
 	RETURN_EC_ON_FAIL((dev != NULL), ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	gna_device *self = (gna_device *)dev->data;
+	GNA_DEVICE_LOCK_KEY;
 
 	RETURN_EC_ON_FAIL(self != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	RETURN_EC_ON_FAIL(request != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
@@ -880,7 +891,12 @@ ErrorCode gna_request_enqueue(const struct device *dev, const gna_request *reque
 #endif
 
 	/* push request to processing queue */
-	gna_rqueue_push((gna_device *)self, request_int);
+	ec = gna_rqueue_push((gna_device *)self, request_int);
+	if (ec != ADSP_SUCCESS) {
+		gna_request_db_free(self, request_int);
+		GNA_DEVICE_UNLOCK;
+		return ec;
+	}
 
 	/* start HW if queue was empty */
 	if (!(self->queue_processing_active)) {
@@ -900,6 +916,7 @@ ErrorCode gna_get_request_status(const struct device *dev, gna_request *request,
 
 	RETURN_EC_ON_FAIL((dev != NULL), ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	gna_device *self = (gna_device *)dev->data;
+	GNA_DEVICE_LOCK_KEY;
 
 	RETURN_EC_ON_FAIL(self != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	RETURN_EC_ON_FAIL(request != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
@@ -935,6 +952,7 @@ ErrorCode gna_abort_request(const struct device *dev, gna_request *request)
 
 	RETURN_EC_ON_FAIL((dev != NULL), ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	gna_device *self = (gna_device *)dev->data;
+	GNA_DEVICE_LOCK_KEY;
 
 	RETURN_EC_ON_FAIL(self != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
 	RETURN_EC_ON_FAIL(request != NULL, ADSP_ERROR_NULL_POINTER_AS_PARAM);
@@ -969,9 +987,15 @@ ErrorCode gna_abort_request(const struct device *dev, gna_request *request)
 
 	/* remove from queue */
 	ec = gna_rqueue_remove(self, req_internal);
+	if (ec != ADSP_SUCCESS) {
+		GNA_DEVICE_UNLOCK;
+	}
 	RETURN_ON_ERROR(ec);
 	/* delete from request database */
 	ec = gna_request_db_free(self, req_internal);
+	if (ec != ADSP_SUCCESS) {
+		GNA_DEVICE_UNLOCK;
+	}
 	RETURN_ON_ERROR(ec);
 
 	/* check for not queue empty and call gna_device_process_request()

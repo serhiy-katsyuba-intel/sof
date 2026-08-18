@@ -9,8 +9,17 @@
 #define __SOF_LIB_INFERENCE_SERVICE_H__
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <sof/lib/gna/gna_instance.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct device;
+struct gna_instance_data;
+struct gna_model_ctx;
+struct gna_request_ctx;
 
 /*!
  * @brief Enum of error code value which can be reported by a Inference Service
@@ -38,8 +47,6 @@ enum request_status_code {
  * @brief Structure representing neural network model in memory.
  */
 struct inference_model {
-	/*!< required alignment of model buffer */
-	size_t model_alignment; /* TODO: has to be set to 64 */
 	/*!< model data */
 	const uint8_t *data;
 	/*!< model size */
@@ -116,6 +123,8 @@ struct inference_model_cfg {
 	} model;
 	/*!< GNA instance data */
 	struct gna_instance_data *gna;
+	/*!< Caller-provided model context storage */
+	struct gna_model_ctx *model_ctx;
 	/*!< Model context size */
 	uint32_t model_ctx_size;
 	/*!< GNA device instance ID (0 = default) */
@@ -142,6 +151,8 @@ struct inference_request_cfg {
 	size_t cb;
 	/*!< GNA instance data */
 	struct gna_instance_data *gna;
+	/*!< Caller-provided request context storage */
+	struct gna_request_ctx *request_ctx;
 	/*!< Request context size */
 	uint32_t request_ctx_size;
 	/*!< Associated model context (must be already initialized) */
@@ -163,14 +174,15 @@ struct inference_hpp_client_cfg {
 };
 
 /**
- * @brief Initializes the GNA inference service.
+ * @brief Gets the service-owned backend for a physical GNA device instance.
  *
- * This function initializes the GNA inference service and returns a pointer to the
- * gna_instance_data structure.
+ * The backend registry is created during firmware startup, so callers only look
+ * an instance up and never initialize or release the service.
  *
- * @return A pointer to the gna_instance_data structure.
+ * @param instance Physical GNA device instance index.
+ * @returns The initialized backend, or NULL if it is unavailable.
  */
-struct gna_instance_data *inference_init(void);
+struct gna_instance_data *inference_get_instance(uint32_t instance);
 
 /*! @brief Gets a GNA device by instance index.
  *
@@ -195,38 +207,30 @@ uint32_t inference_get_device_count(void);
  */
 uint32_t inference_model_get_required_hw_version(const struct inference_model *model);
 
-/**
- * @brief Frees the resources used by the GNA inference service.
- *
- * This function frees the resources used by the GNA inference service, including the
- * gna_instance_data, gna_model_ctx, and gna_request_ctx structures.
- *
- * @param gna The pointer to the gna_instance_data structure.
- */
-void inference_free(struct gna_instance_data *gna);
-
 /* ----------- model loading flow ----------- */
 
-/*! @brief Retrieves size of Model Context that needs to be allocated by module
- * instance.
+/*! @brief Retrieves the size of caller-owned Model Context storage required by
+ * a module instance.
  *
  * @param model pointer to neural network model.
- * @returns object size in bytes.
+ * @returns Required storage size in bytes.
  */
 uint32_t inference_get_model_ctx_size(struct inference_model *model);
 
 /*! @brief Initializes Model Context on a specific GNA device instance.
  *
  * @param model pointer to neural network model.
- * @param gna pointer to GNA instance data.
- * @param model_ctx_size size of model context.
- * @param gna_dev_instance GNA device instance index.
+ * @param gna optional GNA instance data; NULL selects the owner/default instance.
+ * @param model_ctx caller-provided Model Context storage.
+ * @param owner module handle owning the model, or NULL for an explicit backend.
+ * @note The service does not allocate or free model_ctx. The caller must keep
+ *       it valid until inference_model_release() succeeds, then free it.
  * @returns 0 on success, an error code otherwise.
  */
 int inference_model_init(struct inference_model *model,
 			 struct gna_instance_data *gna,
-			 uint32_t model_ctx_size,
-			 uint32_t gna_dev_instance);
+			 struct gna_model_ctx *model_ctx,
+			 const void *owner);
 
 /*! @brief Retrieves scaling factors defined by neural network model
  *
@@ -239,74 +243,115 @@ int inference_model_init(struct inference_model *model,
 int inference_get_model_scaling_factors(struct gna_model_ctx *model_ctx,
 					struct scaling_factors *factors);
 
-/*! @brief Retrieves size of Request Context that needs to be allocated by module
- * instance.
+/*! @brief Retrieves the size of caller-owned Request Context storage required
+ * by a module instance.
  *
  * @param model_ctx pointer to neural network model context.
- * @returns object size in bytes.
+ * @returns Required storage size in bytes.
  */
 uint32_t inference_get_request_ctx_size(struct gna_model_ctx *model_ctx);
 
 /*! @brief Initializes Request Context instance in provided memory.
  *
- * @param gna pointer to GNA instance data.
- * @param request_ctx_size size of request context.
+ * @param model_ctx initialized model context associated with the request.
+ * @param request_ctx caller-provided Request Context storage.
+ * @note The service does not allocate or free request_ctx. The caller must
+ *       keep it valid until inference_request_release() succeeds, then free it.
  * @returns 0 on success, an error code otherwise.
  */
-int inference_request_init(struct gna_instance_data *gna, uint32_t request_ctx_size);
+int inference_request_init(struct gna_model_ctx *model_ctx,
+			   struct gna_request_ctx *request_ctx);
+
+/**
+ * @brief Retrieves the input buffer owned by a request context.
+ *
+ * @param request_ctx Request context.
+ * @param buffer Output input buffer address.
+ * @param buffer_size Output input buffer size.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_request_get_input(struct gna_request_ctx *request_ctx,
+				uint8_t **buffer, size_t *buffer_size);
+
+/**
+ * @brief Retrieves the output buffer owned by a request context.
+ *
+ * @param request_ctx Request context.
+ * @param buffer Output output buffer address.
+ * @param buffer_size Output output buffer size.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_request_get_output(struct gna_request_ctx *request_ctx,
+				 uint8_t **buffer, size_t *buffer_size);
+
+/**
+ * @brief Retrieves the state buffer owned by a request context.
+ *
+ * @param request_ctx Request context.
+ * @param buffer Output state buffer address.
+ * @param buffer_size Output state buffer size.
+ * @returns 0 on success, an error code otherwise.
+ */
+int inference_request_get_state(struct gna_request_ctx *request_ctx,
+				uint8_t **buffer, size_t *buffer_size);
 
 /* ----------- model process flow ----------- */
 
 /*! @brief Starts inference and blocks until it is finished.
  *
- * @param gna pointer to GNA instance data
+ * @param request_ctx Request Context to start.
  * @returns 0 on success, an error code otherwise
  */
-int inference_request_start_yield(struct gna_instance_data *gna);
+int inference_request_start_yield(struct gna_request_ctx *request_ctx);
 
 /*! @brief Starts inference and returns.
  *
  * See \ref RequestQueryStatus for querying request status
- * @param gna pointer to GNA instance data
+ * @param request_ctx Request Context to start.
  * @returns 0 on success, an error code otherwise
  */
-int inference_request_start_async(struct gna_instance_data *gna);
+int inference_request_start_async(struct gna_request_ctx *request_ctx);
 
 /**
  * @brief Checks the status of an inference request.
  *
- * @param gna The GNA instance data.
+ * @param request_ctx Request Context to query.
  * @return The status of the inference request.
  */
-int inference_request_query_status(struct gna_instance_data *gna);
+int inference_request_query_status(struct gna_request_ctx *request_ctx);
 
 /*! @brief Resets request to its initial state.
  * State buffer is restored, input/output are not changed.
  *
- * @param gna The GNA instance data.
+ * @param request_ctx Request Context to reset.
  * @returns 0 on success, an error code otherwise
  */
-int inference_request_reset(struct gna_instance_data *gna);
+int inference_request_reset(struct gna_request_ctx *request_ctx);
 
 /* ----------- model unload flow ----------- */
 
 /*! @brief Releases inference request object
  *
- * Will block if request is still processing.
+ * Releases service-owned request buffers and waits if the request is still
+ * processing. It does not free the caller-owned request_ctx storage.
  *
- * @param gna The GNA instance data.
+ * @param request_ctx Request Context to release.
+ * @note The caller may free request_ctx only after this function succeeds.
  * @returns 0 on success, an error code otherwise
  */
-int inference_request_release(struct gna_instance_data *gna);
+int inference_request_release(struct gna_request_ctx *request_ctx);
 
 /*! @brief Releases neural network model context
  *
- * Should be called only if there is no request enqueued.
+ * Releases the model from the service and backend. It does not free the
+ * caller-owned model_ctx storage.
  *
- * @param gna The GNA instance data.
+ * @param model_ctx Model Context to release.
+ * @note All associated requests must be released first. The caller may free
+ *       model_ctx only after this function succeeds.
  * @returns 0 on success, an error code otherwise
  */
-int inference_model_release(struct gna_instance_data *gna);
+int inference_model_release(struct gna_model_ctx *model_ctx);
 
 /* ----------- V1 accessors ----------- */
 
@@ -341,12 +386,12 @@ int inference_model_get_user_metadata(struct gna_model_ctx *model_ctx,
 
 /*! @brief Updates the range of layers to execute during inference.
  *
- * @param gna The GNA instance data.
+ * @param request_ctx Request Context to update.
  * @param ldt_layer_start First layer index to execute.
  * @param layer_count Number of layers to execute.
  * @returns 0 on success, an error code otherwise.
  */
-int inference_update_layers_range(struct gna_instance_data *gna,
+int inference_update_layers_range(struct gna_request_ctx *request_ctx,
 				  uint32_t ldt_layer_start, uint32_t layer_count);
 
 /* ----------- V3 HPP and parameters ----------- */
@@ -362,6 +407,7 @@ int inference_update_layers_range(struct gna_instance_data *gna,
  * @returns 0 on success, an error code otherwise.
  */
 int inference_request_get_parameter(struct gna_instance_data *gna,
+				    struct gna_request_ctx *request_ctx,
 				    enum inference_request_param_type type,
 				    void *out_value, uint32_t out_size,
 				    const void *in_value, uint32_t in_size);
@@ -375,6 +421,7 @@ int inference_request_get_parameter(struct gna_instance_data *gna,
  * @returns 0 on success, an error code otherwise.
  */
 int inference_request_set_parameter(struct gna_instance_data *gna,
+				    struct gna_request_ctx *request_ctx,
 				    enum inference_request_param_type type,
 				    const void *in_value, uint32_t in_size);
 
@@ -401,14 +448,16 @@ int inference_unregister_hpp_client(struct hpp_client_handle client_id);
  * @param gna The GNA instance data.
  * @returns 0 on success, an error code otherwise.
  */
-int inference_request_start_hpp_sync(struct gna_instance_data *gna);
+int inference_request_start_hpp_sync(struct gna_instance_data *gna,
+				     struct gna_request_ctx *request_ctx);
 
 /*! @brief Starts inference asynchronously via HPP.
  *
  * @param gna The GNA instance data.
  * @returns 0 on success, an error code otherwise.
  */
-int inference_request_start_hpp_async(struct gna_instance_data *gna);
+int inference_request_start_hpp_async(struct gna_instance_data *gna,
+				      struct gna_request_ctx *request_ctx);
 
 /* ----------- V4 extended API ----------- */
 
@@ -449,6 +498,11 @@ int inference_register_hpp_client_ex(const struct inference_hpp_client_cfg *cfg)
  * @param gna The GNA instance data.
  * @returns 0 on success, an error code otherwise.
  */
-int inference_request_start_ex(struct gna_instance_data *gna);
+int inference_request_start_ex(struct gna_instance_data *gna,
+				       struct gna_request_ctx *request_ctx);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __SOF_LIB_INFERENCE_SERVICE_H__ */

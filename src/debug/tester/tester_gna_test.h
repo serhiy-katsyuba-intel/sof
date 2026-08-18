@@ -11,6 +11,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <sof/lib/gna/gna_instance.h>
 #include <sof/lib/inference_service.h>
 #include "tester.h"
 

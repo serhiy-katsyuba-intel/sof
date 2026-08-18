@@ -9,8 +9,12 @@
 #define __SOF_LIB_GNA_MODEL_H__
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <sof/list.h>
 #include <drivers/intel_gna34.h>
+#include <zephyr/sys/atomic.h>
+
+struct gna_instance_data;
 
 /**
  * @brief Structure representing a GNA model context.
@@ -25,6 +29,9 @@ struct gna_model_ctx {
 	size_t model_size;	     /**< Size of the model data in bytes */
 	gna_model_id *model_id;	     /**< Pointer to the model ID */
 	struct list_item model_item; /**< Model item in a list */
+	const void *owner; /**< ModuleHandle owning model_data */
+	struct gna_instance_data *backend;   /**< Service-owned GNA backend */
+	uint32_t gna_dev_instance;           /**< Bound physical GNA device */
 
 	uint8_t *user_data;	      /**< Pointer to user data */
 	uint8_t *ro;		      /**< Pointer to the read-only (ro) buffer */
@@ -47,16 +54,13 @@ struct gna_model_ctx {
 	float input_scale_factor;  /**< Input scale factor */
 	float output_scale_factor; /**< Output scale factor */
 
-	uint32_t active_requests; /**< Number of active requests */
+	atomic_t active_requests; /**< Number of active requests */
 
 	uint8_t DCACHE_ALIGN gna_extra_scratch_buffer[0]; /**< Flexible array member for additional
 							     scratch buffer space */
 };
 
-static inline bool gna_is_scratch_shared(struct gna_model_ctx *model_ctx)
-{
-	return model_ctx->scratch_ptr == model_ctx->gna_extra_scratch_buffer;
-}
+bool gna_is_scratch_shared(struct gna_model_ctx *model_ctx);
 
 static inline size_t gna_model_get_input_buff_size(struct gna_model_ctx *model_ctx)
 {

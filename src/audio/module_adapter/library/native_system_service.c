@@ -18,10 +18,23 @@
 #include <sof/ipc/msg.h>
 #include <native_system_service.h>
 #include <sof/lib_manager.h>
+#if CONFIG_INFERENCE_SERVICE
+#include <sof/lib/inference_service.h>
+#endif
 #include <module/module/logger.h>
 #include <rtos/userspace_helper.h>
 
 #define RSIZE_MAX 0x7FFFFFFF
+
+#if CONFIG_INFERENCE_SERVICE
+struct system_service_iface *inference_service_provider_iface_v1(void);
+struct system_service_iface *inference_service_provider_iface_v2(void);
+
+static bool inference_service_available(void)
+{
+	return inference_get_instance(0) != NULL;
+}
+#endif
 
  /*! Module log level priority to sof log level conversion array */
 const int log_priority_map[L_MAX] = {
@@ -161,8 +174,19 @@ AdspErrorCode native_system_service_get_interface(enum interface_id id,
 	if (!iface)
 		return ADSP_INVALID_PARAMETERS;
 
-	(void)id;
 	*iface = NULL;
+
+#if CONFIG_INFERENCE_SERVICE
+	if (id == INTERFACE_ID_INFERENCE_SERVICE) {
+		if (!inference_service_available())
+			return ADSP_SERVICE_UNAVAILABLE;
+		*iface = inference_service_provider_iface_v1();
+		return ADSP_NO_ERROR;
+	}
+#else
+	(void)id;
+#endif
+
 	return ADSP_SERVICE_UNAVAILABLE;
 }
 
@@ -173,9 +197,30 @@ AdspErrorCode native_system_service_get_interface_versioned(enum interface_id id
 	if (!iface)
 		return ADSP_INVALID_PARAMETERS;
 
+	*iface = NULL;
+
+#if CONFIG_INFERENCE_SERVICE
+	if (id == INTERFACE_ID_INFERENCE_SERVICE) {
+		switch (version) {
+		case INTERFACE_VERSION_INFERENCE_SERVICE_V1:
+			if (!inference_service_available())
+				return ADSP_SERVICE_UNAVAILABLE;
+			*iface = inference_service_provider_iface_v1();
+			return ADSP_NO_ERROR;
+		case INTERFACE_VERSION_INFERENCE_SERVICE_V2:
+			if (!inference_service_available())
+				return ADSP_SERVICE_UNAVAILABLE;
+			*iface = inference_service_provider_iface_v2();
+			return ADSP_NO_ERROR;
+		default:
+			return ADSP_SERVICE_VERSION_UNAVAILABLE;
+		}
+	}
+#else
 	(void)id;
 	(void)version;
-	*iface = NULL;
+#endif
+
 	return ADSP_SERVICE_UNAVAILABLE;
 }
 

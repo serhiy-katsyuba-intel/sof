@@ -9,6 +9,7 @@
 #define __SOF_LIB_GNA_REQUEST_H__
 
 #include <sof/lib/gna/gna_model.h>
+#include <zephyr/kernel.h>
 
 /**
  * @brief Structure representing a GNA request context.
@@ -17,6 +18,7 @@
  */
 struct gna_request_ctx {
 	struct gna_model_ctx *model; /**< Pointer to the GNA model context */
+	struct list_item request_item; /**< Request item in the backend live list */
 	gna_request gna_request;     /**< The GNA request */ /* TODO: change field to request*/
 	bool in_progress;	     /**< Flag indicating if the request is in progress */
 	gna_request_status cached_request_status; /**< Cached request status */
@@ -29,6 +31,12 @@ struct gna_request_ctx {
 	uint8_t *input_buffer;	/**< Pointer to the input buffer */
 	uint8_t *output_buffer; /**< Pointer to the output buffer */
 	uint8_t *state_buffer;	/**< Pointer to the state buffer */
+	uint32_t input_buffer_size;	/**< Input buffer size copied from the model */
+	uint32_t output_buffer_size;	/**< Output buffer size copied from the model */
+	uint32_t state_buffer_size;	/**< State buffer size copied from the model */
+
+	/* Kernel objects must not live in the client-owned, cached context memory. */
+	struct k_sem *completion;	/**< FW-owned completion signal from the GNA ISR */
 
 	uint32_t DCACHE_ALIGN pad[0]; /**< Padding */
 };
