@@ -161,7 +161,11 @@ AdspErrorCode native_system_service_get_interface(enum interface_id id,
 	if (!iface)
 		return ADSP_INVALID_PARAMETERS;
 
-	(void)id;
+	if (id == INTERFACE_ID_KPB_SERVICE) {
+		*iface = native_kpb_service_get_interface();
+		return ADSP_NO_ERROR;
+	}
+
 	*iface = NULL;
 	return ADSP_SERVICE_UNAVAILABLE;
 }

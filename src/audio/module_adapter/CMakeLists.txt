@@ -73,6 +73,7 @@ endif()
 		iadk/module_initial_settings_concrete.cpp
 		iadk/iadk_module_adapter.cpp
 		iadk/system_agent.cpp
+		library/kpb_service.cpp
 		library/native_system_service.c
 	)
 
