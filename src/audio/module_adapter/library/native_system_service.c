@@ -161,10 +161,12 @@ AdspErrorCode native_system_service_get_interface(enum interface_id id,
 	if (!iface)
 		return ADSP_INVALID_PARAMETERS;
 
+#if CONFIG_COMP_KPB
 	if (id == INTERFACE_ID_KPB_SERVICE) {
 		*iface = native_kpb_service_get_interface();
 		return ADSP_NO_ERROR;
 	}
+#endif
 
 	*iface = NULL;
 	return ADSP_SERVICE_UNAVAILABLE;
@@ -176,6 +178,18 @@ AdspErrorCode native_system_service_get_interface_versioned(enum interface_id id
 {
 	if (!iface)
 		return ADSP_INVALID_PARAMETERS;
+
+#if CONFIG_COMP_KPB
+	if (id == INTERFACE_ID_KPB_SERVICE) {
+		if (version != INTERFACE_VERSION_KPB_SERVICE_V2) {
+			*iface = NULL;
+			return ADSP_SERVICE_VERSION_UNAVAILABLE;
+		}
+
+		*iface = native_kpb_service_get_interface();
+		return ADSP_NO_ERROR;
+	}
+#endif
 
 	(void)id;
 	(void)version;

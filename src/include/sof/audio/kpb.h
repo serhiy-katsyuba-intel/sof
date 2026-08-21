@@ -103,6 +103,7 @@ enum kpb_event {
 struct kpb_event_data {
 	enum kpb_event event_id;
 	struct kpb_client *client_data;
+	int status; /**< Result set by the local event consumer. */
 };
 
 enum kpb_client_state {

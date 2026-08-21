@@ -73,9 +73,14 @@ endif()
 		iadk/module_initial_settings_concrete.cpp
 		iadk/iadk_module_adapter.cpp
 		iadk/system_agent.cpp
-		library/kpb_service.cpp
 		library/native_system_service.c
 	)
+	if(CONFIG_INTEL_MODULES AND CONFIG_COMP_KPB)
+		zephyr_library_sources(
+			library/kpb_service.cpp
+			library/kpb_service_bridge.c
+		)
+	endif()
 
 	zephyr_library_sources_ifdef(CONFIG_SOF_USERSPACE_PROXY
 		library/userspace_proxy.c
