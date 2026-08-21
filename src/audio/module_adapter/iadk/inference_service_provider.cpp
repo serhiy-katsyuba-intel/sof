@@ -9,6 +9,15 @@ namespace
 	using IesV1 = intel_adsp::InferenceServiceInterfaceV1;
 	using intel_adsp::Array;
 
+	IesV1::ErrorCode::Type MapError(int ret)
+	{
+		if (!ret)
+			return IesV1::ErrorCode::NO_ERROR;
+		if (ret == -EINVAL)
+			return IesV1::ErrorCode::INVALID_PARAMETERS;
+		return IesV1::ErrorCode::FATAL_FAILURE;
+	}
+
 	class InferenceServiceProvider final : public intel_adsp::InferenceServiceInterfaceV2
 	{
 	public:
@@ -72,23 +81,40 @@ namespace
 		model.size = model_data->size;
 		ret = inference_model_init(&model, NULL,
 			reinterpret_cast<struct gna_model_ctx *>(model_context), owning_module);
-		if (!ret)
-			return ErrorCode::NO_ERROR;
-		return ret == -ENOMEM || ret == -ENODEV ?
-			ErrorCode::FATAL_FAILURE : ErrorCode::INVALID_MODEL;
+		if (ret == -EBADMSG)
+			return ErrorCode::INVALID_MODEL;
+		return MapError(ret);
 	}
 
 	IesV1::ScalingFactors
 	InferenceServiceProvider::ModelGetScalingFactors(ModelContext *model_context) const
 	{
-		return ScalingFactors(0.0f, 0.0f);
+		struct scaling_factors factors;
+
+		if (inference_get_model_scaling_factors(
+			reinterpret_cast<struct gna_model_ctx *>(model_context), &factors))
+			return ScalingFactors(0.0f, 0.0f);
+
+		return ScalingFactors(factors.in, factors.out);
 	}
 
 	IesV1::ErrorCode::Type
 	InferenceServiceProvider::ModelGetUserMetadata(ModelContext *model_context,
 							  Array<uint8_t> &metadata) const
 	{
-		return ErrorCode::FATAL_FAILURE;
+		uint8_t *data;
+		size_t size;
+		int ret;
+
+		ret = inference_model_get_user_metadata(
+			reinterpret_cast<struct gna_model_ctx *>(model_context), &data, &size);
+		if (ret == -ENODATA)
+			return ErrorCode::NO_USER_DATA;
+		if (ret)
+			return MapError(ret);
+
+		metadata.Init(data, size);
+		return ErrorCode::NO_ERROR;
 	}
 
 	uint32_t InferenceServiceProvider::RequestGetContextSize(ModelContext *model_context) const
@@ -120,55 +146,101 @@ namespace
 	IesV1::InferenceBuffer
 	InferenceServiceProvider::RequestGetInput(RequestContext *request_context) const
 	{
-		return InferenceBuffer(NULL, 0);
+		uint8_t *buffer;
+		size_t size;
+
+		if (inference_request_get_input(
+			reinterpret_cast<struct gna_request_ctx *>(request_context),
+			&buffer, &size))
+			return InferenceBuffer(NULL, 0);
+
+		return InferenceBuffer(buffer, size);
 	}
 
 	IesV1::InferenceBuffer
 	InferenceServiceProvider::RequestGetOutput(RequestContext *request_context) const
 	{
-		return InferenceBuffer(NULL, 0);
+		uint8_t *buffer;
+		size_t size;
+
+		if (inference_request_get_output(
+			reinterpret_cast<struct gna_request_ctx *>(request_context),
+			&buffer, &size))
+			return InferenceBuffer(NULL, 0);
+
+		return InferenceBuffer(buffer, size);
 	}
 
 	IesV1::InferenceBuffer
 	InferenceServiceProvider::RequestGetState(RequestContext *request_context) const
 	{
-		return InferenceBuffer(NULL, 0);
+		uint8_t *buffer;
+		size_t size;
+
+		if (inference_request_get_state(
+			reinterpret_cast<struct gna_request_ctx *>(request_context),
+			&buffer, &size))
+			return InferenceBuffer(NULL, 0);
+
+		return InferenceBuffer(buffer, size);
 	}
 
 	IesV1::ErrorCode::Type
 	InferenceServiceProvider::ModelGetRoData(ModelContext *model_context,
 						   Array<const uint8_t> &ro_data) const
 	{
-		return ErrorCode::FATAL_FAILURE;
+		const uint8_t *data;
+		size_t size;
+		int ret;
+
+		ret = inference_model_get_ro_data(
+			reinterpret_cast<struct gna_model_ctx *>(model_context), &data, &size);
+		if (ret)
+			return MapError(ret);
+
+		ro_data.Init(data, size);
+		return ErrorCode::NO_ERROR;
 	}
 
 	uint32_t InferenceServiceProvider::ModelGetLdtNumber(ModelContext *model_context) const
 	{
-		return 0;
+		return inference_model_get_ldt_number(
+			reinterpret_cast<struct gna_model_ctx *>(model_context));
 	}
 
 	IesV1::ErrorCode::Type
 	InferenceServiceProvider::RequestStartAndYield(RequestContext *request_context)
 	{
-		return ErrorCode::FATAL_FAILURE;
+		return MapError(inference_request_start_yield(
+			reinterpret_cast<struct gna_request_ctx *>(request_context)));
 	}
 
 	IesV1::ErrorCode::Type
 	InferenceServiceProvider::RequestStartAsync(RequestContext *request_context)
 	{
-		return ErrorCode::FATAL_FAILURE;
+		return MapError(inference_request_start_async(
+			reinterpret_cast<struct gna_request_ctx *>(request_context)));
 	}
 
 	IesV1::RequestStatus
 	InferenceServiceProvider::RequestQueryStatus(RequestContext *request_context)
 	{
-		return RequestStatus(RequestStatus::ERROR);
+		switch (inference_request_query_status(
+			reinterpret_cast<struct gna_request_ctx *>(request_context))) {
+		case REQUEST_SUCCESS:
+			return RequestStatus(RequestStatus::SUCCESS);
+		case REQUEST_PENDING:
+			return RequestStatus(RequestStatus::PENDING);
+		default:
+			return RequestStatus(RequestStatus::ERROR);
+		}
 	}
 
 	IesV1::ErrorCode::Type
 	InferenceServiceProvider::RequestReset(RequestContext *request_context)
 	{
-		return ErrorCode::FATAL_FAILURE;
+		return MapError(inference_request_reset(
+			reinterpret_cast<struct gna_request_ctx *>(request_context)));
 	}
 
 	IesV1::ErrorCode::Type
@@ -177,9 +249,7 @@ namespace
 		int ret = inference_request_release(
 			reinterpret_cast<struct gna_request_ctx *>(request_context));
 
-		if (!ret)
-			return ErrorCode::NO_ERROR;
-		return ret == -EINVAL ? ErrorCode::INVALID_PARAMETERS : ErrorCode::FATAL_FAILURE;
+		return MapError(ret);
 	}
 
 	IesV1::ErrorCode::Type
@@ -188,9 +258,7 @@ namespace
 		int ret = inference_model_release(
 			reinterpret_cast<struct gna_model_ctx *>(model_context));
 
-		if (!ret)
-			return ErrorCode::NO_ERROR;
-		return ret == -EINVAL ? ErrorCode::INVALID_PARAMETERS : ErrorCode::FATAL_FAILURE;
+		return MapError(ret);
 	}
 
 	IesV1::ErrorCode::Type
@@ -198,7 +266,9 @@ namespace
 						      uint32_t ldt_layer_start,
 						      uint32_t layer_count)
 	{
-		return ErrorCode::FATAL_FAILURE;
+		return MapError(inference_update_layers_range(
+			reinterpret_cast<struct gna_request_ctx *>(request_context),
+			ldt_layer_start, layer_count));
 	}
 
 	const InferenceServiceProvider provider;

@@ -240,7 +240,7 @@ int inference_model_init(struct inference_model *model,
 	if (tlv_status) {
 		tr_err(&inference_svc_tr, "GNA model parsing cfg failed! status=0x%x",
 		       tlv_status);
-		ret = -EINVAL;
+		ret = tlv_status == -ENOMEM ? -ENOMEM : -EBADMSG;
 		goto model_err;
 	}
 
@@ -560,6 +560,11 @@ int inference_update_layers_range(struct gna_request_ctx *request_ctx,
 {
 	if (!inference_context_backend(request_ctx, true))
 		return -EINVAL;
+	if (!layer_count || ldt_layer_start >= request_ctx->model->ldt_number ||
+	    layer_count > request_ctx->model->ldt_number - ldt_layer_start)
+		return -EINVAL;
+	if (request_ctx->in_progress)
+		return -EBUSY;
 
 	request_ctx->ldt_layer_start = ldt_layer_start;
 	request_ctx->layer_count = layer_count;
