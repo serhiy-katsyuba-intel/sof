@@ -43,6 +43,14 @@ AdspErrorCode native_system_service_get_interface(enum interface_id id,
 						  struct system_service_iface **iface);
 
 /**
+ * \brief Get the KPB service v2 interface instance.
+ *
+ * \return The KPB service interface.
+ */
+struct system_service_iface *native_kpb_service_get_interface_v1(void);
+struct system_service_iface *native_kpb_service_get_interface_v2(void);
+
+/**
  * \brief Retrieve a versioned system service interface.
  *
  * \param id Service interface identifier.

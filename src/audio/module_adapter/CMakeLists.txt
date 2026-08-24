@@ -72,6 +72,12 @@ endif()
 		iadk/system_agent.cpp
 		library/native_system_service.c
 	)
+	if(CONFIG_INTEL_MODULES AND CONFIG_COMP_KPB)
+		zephyr_library_sources(
+			library/kpb_service.cpp
+			library/kpb_service_bridge.c
+		)
+	endif()
 
 	if(CONFIG_INTEL_MODULES AND CONFIG_INFERENCE_SERVICE)
 		zephyr_library_sources(iadk/inference_service_provider.cpp)

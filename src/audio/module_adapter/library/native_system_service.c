@@ -176,6 +176,13 @@ AdspErrorCode native_system_service_get_interface(enum interface_id id,
 
 	*iface = NULL;
 
+#if CONFIG_COMP_KPB
+	if (id == INTERFACE_ID_KPB_SERVICE) {
+		*iface = native_kpb_service_get_interface_v1();
+		return ADSP_NO_ERROR;
+	}
+#endif
+
 #if CONFIG_INFERENCE_SERVICE
 	if (id == INTERFACE_ID_INFERENCE_SERVICE) {
 		if (!inference_service_available())
@@ -183,8 +190,6 @@ AdspErrorCode native_system_service_get_interface(enum interface_id id,
 		*iface = inference_service_provider_iface_v1();
 		return ADSP_NO_ERROR;
 	}
-#else
-	(void)id;
 #endif
 
 	return ADSP_SERVICE_UNAVAILABLE;
@@ -216,9 +221,21 @@ AdspErrorCode native_system_service_get_interface_versioned(enum interface_id id
 			return ADSP_SERVICE_VERSION_UNAVAILABLE;
 		}
 	}
-#else
-	(void)id;
-	(void)version;
+#endif
+
+#if CONFIG_COMP_KPB
+	if (id == INTERFACE_ID_KPB_SERVICE) {
+		switch (version) {
+		case INTERFACE_VERSION_KPB_SERVICE_V1:
+			*iface = native_kpb_service_get_interface_v1();
+			return ADSP_NO_ERROR;
+		case INTERFACE_VERSION_KPB_SERVICE_V2:
+			*iface = native_kpb_service_get_interface_v2();
+			return ADSP_NO_ERROR;
+		default:
+			return ADSP_SERVICE_VERSION_UNAVAILABLE;
+		}
+	}
 #endif
 
 	return ADSP_SERVICE_UNAVAILABLE;
