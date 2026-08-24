@@ -1242,7 +1242,6 @@ static int kpb_copy(struct comp_dev *dev)
 	case KPB_STATE_RUN:
 		/* In normal RUN state we simply copy to our sink. */
 		sink = kpb->sel_sink;
-		ret = PPL_STATUS_PATH_STOP;
 
 		if (!sink) {
 			comp_err(dev, "no sink.");
@@ -1255,6 +1254,7 @@ static int kpb_copy(struct comp_dev *dev)
 			copy_bytes = audio_stream_get_avail_bytes(&source->stream);
 			comp_update_buffer_consume(source, copy_bytes);
 			comp_dbg(dev, "KD not active, dropping %zu bytes...", copy_bytes);
+			ret = PPL_STATUS_PATH_STOP;
 			break;
 		}
 
@@ -1270,7 +1270,8 @@ static int kpb_copy(struct comp_dev *dev)
 			comp_err(dev, "nothing to copy sink->free %u source->avail %u",
 				 audio_stream_get_free_bytes(&sink->stream),
 				 audio_stream_get_avail_bytes(&source->stream));
-			ret = PPL_STATUS_PATH_STOP;
+			if (!audio_stream_get_avail_bytes(&sink->stream))
+				ret = PPL_STATUS_PATH_STOP;
 			break;
 		}
 
@@ -1291,7 +1292,8 @@ static int kpb_copy(struct comp_dev *dev)
 				comp_err(dev, "nothing to copy sink->free %u source->avail %u",
 					 free,
 					 avail);
-				ret = PPL_STATUS_PATH_STOP;
+				if (!audio_stream_get_avail_bytes(&sink->stream))
+					ret = PPL_STATUS_PATH_STOP;
 				break;
 			}
 			kpb_micselect_copy(dev, sink, source, produced_bytes, channels);
@@ -1306,7 +1308,6 @@ static int kpb_copy(struct comp_dev *dev)
 				comp_err(dev, "internal buffering failed.");
 				break;
 			}
-			ret = PPL_STATUS_PATH_STOP;
 
 			/* Update buffered size. NOTE! We only record buffered
 			 * data up to the size of history buffer.
