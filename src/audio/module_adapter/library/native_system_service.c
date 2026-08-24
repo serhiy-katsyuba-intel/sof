@@ -36,6 +36,8 @@ static bool inference_service_available(void)
 }
 #endif
 
+struct system_service_iface *timestamping_service_provider_iface_v1(void);
+
  /*! Module log level priority to sof log level conversion array */
 const int log_priority_map[L_MAX] = {
 	/*! Critical message. */
@@ -176,6 +178,11 @@ AdspErrorCode native_system_service_get_interface(enum interface_id id,
 
 	*iface = NULL;
 
+	if (id == INTERFACE_ID_TIMESTAMPING_SERVICE) {
+		*iface = timestamping_service_provider_iface_v1();
+		return ADSP_NO_ERROR;
+	}
+
 #if CONFIG_COMP_KPB
 	if (id == INTERFACE_ID_KPB_SERVICE) {
 		*iface = native_kpb_service_get_interface_v1();
@@ -203,6 +210,13 @@ AdspErrorCode native_system_service_get_interface_versioned(enum interface_id id
 		return ADSP_INVALID_PARAMETERS;
 
 	*iface = NULL;
+
+	if (id == INTERFACE_ID_TIMESTAMPING_SERVICE) {
+		if (version != INTERFACE_VERSION_TIMESTAMPING_SERVICE_V1)
+			return ADSP_SERVICE_VERSION_UNAVAILABLE;
+		*iface = timestamping_service_provider_iface_v1();
+		return ADSP_NO_ERROR;
+	}
 
 #if CONFIG_INFERENCE_SERVICE
 	if (id == INTERFACE_ID_INFERENCE_SERVICE) {
